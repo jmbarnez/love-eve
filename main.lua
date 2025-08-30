@@ -98,6 +98,23 @@ function love.mousepressed(x,y,btn)
     if btn == 1 then dock.click(x, y) end
     return
   end
+  if btn == 2 then
+    -- Target enemy
+    local lg = love.graphics
+    local wx = ctx.camera.x + (x - lg.getWidth()/2)/ctx.G.ZOOM
+    local wy = ctx.camera.y + (y - lg.getHeight()/2)/ctx.G.ZOOM
+    local closestDist = 50  -- max click distance
+    local target = nil
+    for _,e in ipairs(ctx.enemies) do
+      local dx, dy = wx - e.x, wy - e.y
+      local dist = util.len(dx, dy)
+      if dist < closestDist then
+        closestDist = dist
+        target = e
+      end
+    end
+    ctx.player.target = target
+  end
 end
 
 function love.quit()

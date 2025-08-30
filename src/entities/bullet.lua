@@ -3,14 +3,15 @@ local ctx   = require("src.core.ctx")
 local util  = require("src.core.util")
 local enemy = require("src.entities.enemy")
 local bolt  = require("assets.weapons.bolt")
+local rocket= require("assets.weapons.rocket")
 
 local M = {}
 
-local function newBullet(x,y,vx,vy, life, dmg, owner)
-  return {x=x,y=y,vx=vx,vy=vy, life=life, dmg=dmg, owner=owner, radius=3}
+local function newBullet(x,y,vx,vy, life, dmg, owner, weapon)
+  return {x=x,y=y,vx=vx,vy=vy, life=life, dmg=dmg, owner=owner, radius=3, weapon=weapon or bolt}
 end
 
-function M.createFromOwner(owner, spreadMul)
+function M.createFromOwner(owner, spreadMul, weapon)
   local s = (owner.spread or 0) * (spreadMul or 1)
   local angle = owner.r + (love.math.random()*2-1) * s
   local spd = owner.bulletSpeed
@@ -18,7 +19,7 @@ function M.createFromOwner(owner, spreadMul)
   local by = owner.y + math.sin(angle)* (owner.radius+8)
   local bvx = math.cos(angle)*spd + (owner.vx or 0)*0.3
   local bvy = math.sin(angle)*spd + (owner.vy or 0)*0.3
-  table.insert(ctx.bullets, newBullet(bx,by,bvx,bvy, owner.bulletLife, owner.damage, owner))
+  table.insert(ctx.bullets, newBullet(bx,by,bvx,bvy, owner.bulletLife, owner.damage, owner, weapon))
 end
 
 local function hitEnemy(b, eIndex)
@@ -58,6 +59,23 @@ end
 function M.update(dt)
   for i = #ctx.bullets, 1, -1 do
     local b = ctx.bullets[i]; b._i = i
+
+    -- Homing for rockets
+    if b.weapon == rocket and b.target and b.target.hp > 0 then
+      local dx = b.target.x - b.x
+      local dy = b.target.y - b.y
+      local dist = util.len(dx, dy)
+      if dist > 0 then
+        local spd = 800  -- rocket speed
+        b.vx = (dx / dist) * spd
+        b.vy = (dy / dist) * spd
+      end
+    elseif b.weapon == rocket and (not b.target or b.target.hp <= 0) then
+      -- Remove rocket if target is dead
+      table.remove(ctx.bullets, i)
+      goto continue
+    end
+
     b.x = b.x + b.vx*dt
     b.y = b.y + b.vy*dt
     b.life = b.life - dt
@@ -84,7 +102,7 @@ end
 function M.draw()
   for _,b in ipairs(ctx.bullets) do
     local rot = math.atan2(b.vy, b.vx)
-    bolt.draw(b.x, b.y, rot)
+    b.weapon.draw(b.x, b.y, rot)
   end
 end
 

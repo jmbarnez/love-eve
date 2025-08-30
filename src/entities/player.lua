@@ -29,12 +29,19 @@ function M.new()
     xpToNext=100,
     docked=false,
     autopilot=nil,
+    target=nil,
+    lastRocketShot=0,
   }
 end
 
 function M.init()
-  ctx.player = M.new()
   ctx.station = {x=0,y=0}
+  ctx.player = M.new()
+  -- Start docked at station
+  ctx.player.x = ctx.station.x
+  ctx.player.y = ctx.station.y
+  ctx.player.docked = true
+  ctx.player.r = 0  -- face right initially
 end
 
 local function applyMovement(dt)
@@ -131,6 +138,31 @@ local function shooting(dt)
       p.lastShot = p.lastShot - fireInterval
       ctx.camera.shake = math.min(0.1, ctx.camera.shake + 0.02)
     end
+  end
+
+  -- Auto attack target with rocket
+  if p.target and p.target.hp > 0 and not p.docked then
+    p.lastRocketShot = p.lastRocketShot + dt
+    local rocketInterval = 2.0  -- fire every 2 seconds
+    if p.lastRocketShot >= rocketInterval then
+      -- Fire rocket towards target
+      local tx, ty = p.target.x, p.target.y
+      local dx, dy = tx - p.x, ty - p.y
+      local dist = util.len(dx, dy)
+      if dist > 0 then
+        local angle = math.atan2(dy, dx)
+        local spd = 800  -- faster rocket
+        local bx = p.x + math.cos(angle) * (p.radius + 8)
+        local by = p.y + math.sin(angle) * (p.radius + 8)
+        local bvx = math.cos(angle) * spd
+        local bvy = math.sin(angle) * spd
+        table.insert(ctx.bullets, {x=bx, y=by, vx=bvx, vy=bvy, life=5.0, dmg=p.damage, owner=p, radius=3, weapon=require("assets.weapons.rocket"), target=p.target})
+        p.lastRocketShot = 0
+        ctx.camera.shake = math.min(0.1, ctx.camera.shake + 0.05)
+      end
+    end
+  else
+    p.target = nil
   end
 end
 

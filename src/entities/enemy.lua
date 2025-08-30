@@ -1,6 +1,7 @@
 
 local ctx    = require("src.core.ctx")
 local util   = require("src.core.util")
+local bolt   = require("assets.weapons.bolt")
 
 local M = {}
 local respawnTimer = 0
@@ -59,7 +60,7 @@ local function fire(owner)
   local by = owner.y + math.sin(angle)*(owner.radius+8)
   local bvx = math.cos(angle)*spd + (owner.vx or 0)*0.3
   local bvy = math.sin(angle)*spd + (owner.vy or 0)*0.3
-  table.insert(ctx.bullets, {x=bx,y=by,vx=bvx,vy=bvy, life=owner.bulletLife, dmg=owner.damage, owner=owner, radius=3})
+  table.insert(ctx.bullets, {x=bx,y=by,vx=bvx,vy=bvy, life=owner.bulletLife, dmg=owner.damage, owner=owner, radius=3, weapon=bolt})
 end
 
 local function aggroChaseAndShoot(e, dt)
@@ -140,16 +141,61 @@ end
 
 function M.draw()
   for _,e in ipairs(ctx.enemies) do
-    love.graphics.setColor(0.9,0.25,0.25,1)
+    -- Alien enemy ship with organic, menacing design
+    love.graphics.setColor(0.8, 0.1, 0.2, 1) -- alien red
     love.graphics.push()
     love.graphics.translate(e.x, e.y)
     love.graphics.rotate(e.r)
-    love.graphics.polygon("fill", e.radius,0, -e.radius*0.7, e.radius*0.55, -e.radius*0.7, -e.radius*0.55)
+
+    -- Main body - irregular organic shape
+    love.graphics.polygon("fill",
+      8,0,    -6,6,   -4,3,   -8,0,   -4,-3,   -6,-6
+    )
+
+    -- Alien appendages/tentacles
+    love.graphics.setColor(0.6, 0.05, 0.15, 1)
+    love.graphics.polygon("fill", 2,4, -10,8, -6,5)
+    love.graphics.polygon("fill", 2,-4, -10,-8, -6,-5)
+    love.graphics.polygon("fill", -2,6, -12,10, -8,7)
+    love.graphics.polygon("fill", -2,-6, -12,-10, -8,-7)
+
+    -- Glowing alien eyes/sensors
+    love.graphics.setColor(1.0, 0.3, 0.1, 1) -- orange glow
+    love.graphics.circle("fill", 4, 2, 1.5)
+    love.graphics.circle("fill", 4, -2, 1.5)
+    love.graphics.setColor(1.0, 0.8, 0.2, 0.8) -- yellow centers
+    love.graphics.circle("fill", 4, 2, 0.8)
+    love.graphics.circle("fill", 4, -2, 0.8)
+
     love.graphics.pop()
-    local t = math.max(0, math.min(1, e.hp/e.maxHP))
-    love.graphics.setColor(0.9,0.3,0.3,0.8)
-    love.graphics.circle("line", e.x,e.y, e.radius+4)
-    love.graphics.arc("fill", e.x,e.y, e.radius+3, -math.pi/2, -math.pi/2 + t*math.pi*2)
+
+    -- Health bar
+    local barWidth = 24
+    local barHeight = 4
+    local barX = e.x - barWidth/2
+    local barY = e.y - e.radius - 8
+    local healthPercent = math.max(0, math.min(1, e.hp/e.maxHP))
+
+    -- Background bar
+    love.graphics.setColor(0.3, 0.3, 0.3, 0.8)
+    love.graphics.rectangle("fill", barX, barY, barWidth, barHeight)
+
+    -- Health bar (green to red)
+    local r = 1 - healthPercent
+    local g = healthPercent
+    love.graphics.setColor(r, g, 0, 1)
+    love.graphics.rectangle("fill", barX, barY, barWidth * healthPercent, barHeight)
+
+    -- Border
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.rectangle("line", barX, barY, barWidth, barHeight)
+
+    -- Target ring
+    if e == ctx.player.target then
+      love.graphics.setColor(1,0.5,0, 0.5 + 0.3*math.sin(ctx.state.t*4))  -- pulsing orange
+      love.graphics.circle("line", e.x, e.y, e.radius + 8)
+      love.graphics.setColor(1,1,1,1)
+    end
   end
   love.graphics.setColor(1,1,1,1)
 end
