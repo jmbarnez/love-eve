@@ -37,11 +37,11 @@ end
 function M.init()
   ctx.station = {x=0,y=0}
   ctx.player = M.new()
-  -- Start docked at station
-  ctx.player.x = ctx.station.x
+  -- Start near station but not docked
+  ctx.player.x = ctx.station.x + 150  -- offset to the right
   ctx.player.y = ctx.station.y
-  ctx.player.docked = true
-  ctx.player.r = 0  -- face right initially
+  ctx.player.docked = false
+  ctx.player.r = math.pi  -- face left towards station
 end
 
 local function applyMovement(dt)
