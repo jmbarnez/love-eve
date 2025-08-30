@@ -1,0 +1,157 @@
+
+local ctx    = require("src.core.ctx")
+local util   = require("src.core.util")
+
+local M = {}
+local respawnTimer = 0
+
+local function preset(level)
+  local tier = math.min(1+math.floor((level-1)/3), 4)
+  local presets = {
+    [1] = {hp=40, shield=30, speed=300, damage=10, fireRate=0.9, range=520, bonus= {xp=20, cr=30}},
+    [2] = {hp=70, shield=60, speed=350, damage=12, fireRate=1.2, range=640, bonus= {xp=30, cr=45}},
+    [3] = {hp=110, shield=90, speed=400, damage=16, fireRate=1.6, range=700, bonus= {xp=40, cr=65}},
+    [4] = {hp=160, shield=140, speed=450, damage=20, fireRate=2.0, range=760, bonus= {xp=55, cr=90}},
+  }
+  return presets[tier]
+end
+
+function M.new(px,py, level)
+  local p = preset(level)
+  return {
+    x=px, y=py, vx=0, vy=0, r=0, radius=12,
+    hp=p.hp, maxHP=p.hp,
+    shield=p.shield, maxShield=p.shield, shieldRegen=6, shieldCooldown=0, shieldCDMax=2.4,
+    accel=200, maxSpeed=p.speed, friction=1.0,
+    damage=p.damage, fireRate=p.fireRate, bulletSpeed=380, bulletLife=1.2,
+    spread=0.07, lastShot=0, range=p.range,
+    bonus=p.bonus,
+    state="idle", -- becomes "aggro" only when attacked
+  }
+end
+
+function M.init() end
+
+local function keepInWorld(e)
+  local W = ctx.G.WORLD_SIZE
+  if e.x < -W then e.x = -W; e.vx = math.abs(e.vx) end
+  if e.x > W then e.x = W; e.vx = -math.abs(e.vx) end
+  if e.y < -W then e.y = -W; e.vy = math.abs(e.vy) end
+  if e.y > W then e.y = W; e.vy = -math.abs(e.vy) end
+end
+
+local function idleWander(e, dt)
+  local jitterX = (love.math.random()*2-1) * 0.5
+  local jitterY = (love.math.random()*2-1) * 0.5
+  e.vx = e.vx + jitterX * 10 * dt
+  e.vy = e.vy + jitterY * 10 * dt
+  e.x  = e.x + e.vx*dt
+  e.y  = e.y + e.vy*dt
+  e.r  = e.r + (love.math.random()*2-1)*0.5*dt
+end
+
+-- local bullet factory to avoid circular require
+local function fire(owner)
+  local s = (owner.spread or 0)
+  local angle = owner.r + (love.math.random()*2-1) * s
+  local spd = owner.bulletSpeed
+  local bx = owner.x + math.cos(angle)*(owner.radius+8)
+  local by = owner.y + math.sin(angle)*(owner.radius+8)
+  local bvx = math.cos(angle)*spd + (owner.vx or 0)*0.3
+  local bvy = math.sin(angle)*spd + (owner.vy or 0)*0.3
+  table.insert(ctx.bullets, {x=bx,y=by,vx=bvx,vy=bvy, life=owner.bulletLife, dmg=owner.damage, owner=owner, radius=3})
+end
+
+local function aggroChaseAndShoot(e, dt)
+  local dx,dy = ctx.player.x - e.x, ctx.player.y - e.y
+  local dist = util.len(dx,dy)
+  local ux,uy = (dist>0 and dx/dist or 0), (dist>0 and dy/dist or 0)
+  local targetSpeed = e.maxSpeed
+  local desiredVx, desiredVy = ux*targetSpeed, uy*targetSpeed
+  e.vx = util.lerp(e.vx, desiredVx, 0.6*dt)
+  e.vy = util.lerp(e.vy, desiredVy, 0.6*dt)
+  e.x = e.x + e.vx*dt
+  e.y = e.y + e.vy*dt
+  e.r = math.atan2(dy, dx)
+
+  -- Only shoot after being attacked (state == "aggro")
+  e.lastShot = e.lastShot + dt
+  if dist < e.range and e.lastShot >= 1.0 / e.fireRate then
+    fire(e)
+    e.lastShot = 0
+  end
+end
+
+local function regen(e, dt)
+  if e.shieldCooldown>0 then e.shieldCooldown = e.shieldCooldown - dt end
+  if e.shieldCooldown<=0 then e.shield = math.min(e.maxShield, e.shield + e.shieldRegen*dt) end
+end
+
+function M.onHit(e, dmg)
+  e.shieldCooldown = e.shieldCDMax
+  local s = math.min(e.shield, dmg)
+  e.shield = e.shield - s
+  dmg = dmg - s
+  if dmg > 0 then e.hp = e.hp - dmg end
+  -- Become aggressive *only when hit*
+  e.state = "aggro"
+end
+
+function M.kill(index)
+  local e = ctx.enemies[index]
+  if not e then return end
+  ctx.camera.shake = math.max(ctx.camera.shake, 0.3)
+  for k=1, 10 do
+    table.insert(ctx.particles, {x=e.x, y=e.y, vx=(love.math.random()*2-1)*80, vy=(love.math.random()*2-1)*80, life=0.4+love.math.random()*0.5})
+  end
+  table.insert(ctx.loots, {x=e.x + (love.math.random()*2-1)*10, y=e.y + (love.math.random()*2-1)*10, radius=10, credits=e.bonus.cr, xp=e.bonus.xp, life=12, spin=(love.math.random()*2-1)*2})
+  table.remove(ctx.enemies, index)
+end
+
+local function spawn(dt)
+  if #ctx.enemies >= ctx.G.MAX_ENEMIES then return end
+  respawnTimer = respawnTimer - dt
+  if respawnTimer <= 0 then
+    respawnTimer = ctx.G.ENEMY_RESPAWN_TIME
+    local r = 900 + love.math.random()*600
+    local a = love.math.random()*math.pi*2
+    local ex = ctx.player.x + math.cos(a)*r
+    local ey = ctx.player.y + math.sin(a)*r
+    ex = util.clamp(ex, -ctx.G.WORLD_SIZE+100, ctx.G.WORLD_SIZE-100)
+    ey = util.clamp(ey, -ctx.G.WORLD_SIZE+100, ctx.G.WORLD_SIZE-100)
+    table.insert(ctx.enemies, M.new(ex,ey, ctx.player.level))
+  end
+end
+
+function M.update(dt)
+  spawn(dt)
+  for i = #ctx.enemies, 1, -1 do
+    local e = ctx.enemies[i]
+    if e.state == "idle" then
+      idleWander(e, dt)
+    else
+      aggroChaseAndShoot(e, dt)
+    end
+    regen(e, dt)
+    keepInWorld(e)
+    if e.hp <= 0 then M.kill(i) end
+  end
+end
+
+function M.draw()
+  for _,e in ipairs(ctx.enemies) do
+    love.graphics.setColor(0.9,0.25,0.25,1)
+    love.graphics.push()
+    love.graphics.translate(e.x, e.y)
+    love.graphics.rotate(e.r)
+    love.graphics.polygon("fill", e.radius,0, -e.radius*0.7, e.radius*0.55, -e.radius*0.7, -e.radius*0.55)
+    love.graphics.pop()
+    local t = math.max(0, math.min(1, e.hp/e.maxHP))
+    love.graphics.setColor(0.9,0.3,0.3,0.8)
+    love.graphics.circle("line", e.x,e.y, e.radius+4)
+    love.graphics.arc("fill", e.x,e.y, e.radius+3, -math.pi/2, -math.pi/2 + t*math.pi*2)
+  end
+  love.graphics.setColor(1,1,1,1)
+end
+
+return M
