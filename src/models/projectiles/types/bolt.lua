@@ -15,7 +15,7 @@ M.size = {width = 7, height = 4}
 
 -- Combat properties
 M.damage = 16
-M.speed = 380
+M.speed = 304
 M.lifetime = 1.2
 M.fireRate = 0.9
 

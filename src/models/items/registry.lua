@@ -107,7 +107,7 @@ M.items = {
   },
   
   ["energy_drink"] = {
-    id = "energy_drink", 
+    id = "energy_drink",
     name = "Hyperion Energy Drink",
     description = "Restores energy and increases regeneration rate",
     category = M.CATEGORIES.CONSUMABLE,
@@ -121,6 +121,223 @@ M.items = {
       ctx.player.energyRegen = ctx.player.energyRegen + 2 * quantity
       return "Energy restored, +" .. (2 * quantity) .. " regen rate"
     end
+  },
+
+  -- EQUIPMENT MODULES (High Power)
+  ["small_railgun"] = {
+    id = "small_railgun",
+    name = "Small Focused Pulse Laser I",
+    description = "High-tech laser weapon that delivers focused energy pulses",
+    category = "equipment",
+    slot_type = "high_power",
+    value = 500,
+    stackable = false,
+    maxStack = 1,
+    color = {0.8, 0.3, 0.1, 1}, -- Orange-red
+    stats = {
+      damage = 8
+    }
+  },
+
+  ["small_missile_launcher"] = {
+    id = "small_missile_launcher",
+    name = "Small Missile Launcher I",
+    description = "Basic missile launcher for area denial and crowd control",
+    category = "equipment",
+    slot_type = "high_power",
+    value = 450,
+    stackable = false,
+    maxStack = 1,
+    color = {0.6, 0.4, 0.8, 1}, -- Purple
+    stats = {
+      damage = 12
+    }
+  },
+
+  ["small_energy_blaster"] = {
+    id = "small_energy_blaster",
+    name = "Dual Light Pulse Laser I",
+    description = "Double-barreled laser weapon with high damage output",
+    category = "equipment",
+    slot_type = "high_power",
+    value = 600,
+    stackable = false,
+    maxStack = 1,
+    color = {0.1, 0.7, 1, 1}, -- Light blue
+    stats = {
+      damage = 10
+    }
+  },
+
+  ["small_repairer"] = {
+    id = "small_repairer",
+    name = "Small Armor Repairer I",
+    description = "Active armor repair system that restores hull integrity",
+    category = "equipment",
+    slot_type = "high_power",
+    value = 550,
+    stackable = false,
+    maxStack = 1,
+    color = {0.2, 0.8, 0.3, 1}, -- Green
+    stats = {
+      hp = 5
+    }
+  },
+
+  -- MID POWER MODULES
+  ["small_shield_booster"] = {
+    id = "small_shield_booster",
+    name = "Small Shield Booster I",
+    description = "Increases shield capacity and regeneration",
+    category = "equipment",
+    slot_type = "mid_power",
+    value = 400,
+    stackable = false,
+    maxStack = 1,
+    color = {0.1, 0.5, 1, 1}, -- Blue
+    stats = {
+      maxShield = 15,
+      shieldRegen = 5
+    }
+  },
+
+  ["small_capacitor_booster"] = {
+    id = "small_capacitor_booster",
+    name = "Small Energy Booster I",
+    description = "Increases energy capacity and regeneration rate",
+    category = "equipment",
+    slot_type = "mid_power",
+    value = 350,
+    stackable = false,
+    maxStack = 1,
+    color = {1, 1, 0.4, 1}, -- Yellow
+    stats = {
+      maxEnergy = 15,
+      energyRegen = 3
+    }
+  },
+
+  ["small_sensor_booster"] = {
+    id = "small_sensor_booster",
+    name = "Small Sensor Booster I",
+    description = "Improves targeting accuracy and range",
+    category = "equipment",
+    slot_type = "mid_power",
+    value = 300,
+    stackable = false,
+    maxStack = 1,
+    color = {0.9, 0.6, 1, 1}, -- Light purple
+    stats = {
+      damage = 2  -- Bonus accuracy = more damage
+    }
+  },
+
+  ["small_afterburner"] = {
+    id = "small_afterburner",
+    name = "1MN Afterburner I",
+    description = "Provides a speed boost at the cost of some maneuverability",
+    category = "equipment",
+    slot_type = "mid_power",
+    value = 500,
+    stackable = false,
+    maxStack = 1,
+    color = {0.8, 0.8, 0.5, 1}, -- Light yellow
+    stats = {
+      maxSpeed = 50,
+      accel = 30
+    }
+  },
+
+  -- LOW POWER MODULES
+  ["heat_sink"] = {
+    id = "heat_sink",
+    name = "Heat Sink I",
+    description = "Reduces weapon cooldown and increases damage output",
+    category = "equipment",
+    slot_type = "low_power",
+    value = 250,
+    stackable = false,
+    maxStack = 1,
+    color = {0.8, 0.4, 0.2, 1}, -- Brown-orange
+    stats = {
+      damage = 3
+    }
+  },
+
+  ["co_processor"] = {
+    id = "co_processor",
+    name = "Co-Processor I",
+    description = "Improves CPU performance and weapon accuracy",
+    category = "equipment",
+    slot_type = "low_power",
+    value = 200,
+    stackable = false,
+    maxStack = 1,
+    color = {0.4, 0.8, 0.6, 1}, -- Turquoise
+    stats = {
+      damage = 2
+    }
+  },
+
+  ["adaptive_nano_plating"] = {
+    id = "adaptive_nano_plating",
+    name = "Adaptive Nano Plating I",
+    description = "Provides additional hull integrity",
+    category = "equipment",
+    slot_type = "low_power",
+    value = 300,
+    stackable = false,
+    maxStack = 1,
+    color = {0.5, 0.5, 0.5, 1}, -- Gray
+    stats = {
+      maxHP = 10
+    }
+  },
+
+  -- RIGS
+  ["small_energy_burst_rig"] = {
+    id = "small_energy_burst_rig",
+    name = "Small Energy Burst Aerator I",
+    description = "Rig that increases energy regeneration",
+    category = "equipment",
+    slot_type = "rig",
+    value = 800,
+    stackable = false,
+    maxStack = 1,
+    color = {1, 0.9, 0.3, 1}, -- Bright yellow
+    stats = {
+      energyRegen = 8
+    }
+  },
+
+  ["small_armor_repairer_rig"] = {
+    id = "small_armor_repairer_rig",
+    name = "Small Auxiliary Nano Pump I",
+    description = "Rig that increases hull repair effectiveness",
+    category = "equipment",
+    slot_type = "rig",
+    value = 750,
+    stackable = false,
+    maxStack = 1,
+    color = {0.3, 0.8, 0.4, 1}, -- Bright green
+    stats = {
+      hp = 8
+    }
+  },
+
+  ["small_weapon_calibrator"] = {
+    id = "small_weapon_calibrator",
+    name = "Small Energy Burst Aerator I",
+    description = "Rig that improves weapon performance",
+    category = "equipment",
+    slot_type = "rig",
+    value = 850,
+    stackable = false,
+    maxStack = 1,
+    color = {0.8, 0.3, 0.1, 1}, -- Bright orange
+    stats = {
+      damage = 5
+    }
   }
 }
 

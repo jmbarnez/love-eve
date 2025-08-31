@@ -4,13 +4,21 @@ local util = require("src.core.util")
 
 local M = {}
 
-function M.update(dt)
-  for i=#ctx.loots,1,-1 do
-    local L = ctx.loots[i]
-    L.life = L.life - dt
-    if L.life <= 0 then table.remove(ctx.loots, i) goto continue end
+function M.init()
+  ctx.set("loots", {})
+end
 
-    local dx,dy = ctx.player.x - L.x, ctx.player.y - L.y
+function M.update(dt)
+  local loots = ctx.get("loots")
+  local player = ctx.get("player")
+  local camera = ctx.get("camera")
+
+  for i=#loots,1,-1 do
+    local L = loots[i]
+    L.life = L.life - dt
+    if L.life <= 0 then table.remove(loots, i) goto continue end
+
+    local dx,dy = player.x - L.x, player.y - L.y
     local d2 = util.len2(dx,dy)
     if d2 < 200*200 then
       local d = math.sqrt(d2)
@@ -19,31 +27,34 @@ function M.update(dt)
       L.x = L.x + ux * pull * dt
       L.y = L.y + uy * pull * dt
     end
-    if util.len2(L.x-ctx.player.x, L.y-ctx.player.y) <= (ctx.player.radius+L.radius)*(ctx.player.radius+L.radius) then
-      ctx.player.credits = ctx.player.credits + L.credits
-      ctx.player.xp = ctx.player.xp + L.xp
+    if util.len2(L.x-player.x, L.y-player.y) <= (player.radius+L.radius)*(player.radius+L.radius) then
+      player.credits = player.credits + L.credits
+      player.xp = player.xp + L.xp
       -- level up
-      while ctx.player.xp >= ctx.player.xpToNext do
-        ctx.player.xp = ctx.player.xp - ctx.player.xpToNext
-        ctx.player.level = ctx.player.level + 1
-        ctx.player.xpToNext = math.floor(ctx.player.xpToNext * 1.35 + 0.5)
-        ctx.camera.shake = 0.4
-        ctx.player.maxHP = ctx.player.maxHP + 10
-        ctx.player.hp = ctx.player.maxHP
-        ctx.player.maxShield = ctx.player.maxShield + 12
-        ctx.player.shield = ctx.player.maxShield
+      while player.xp >= player.xpToNext do
+        player.xp = player.xp - player.xpToNext
+        player.level = player.level + 1
+        player.xpToNext = math.floor(player.xpToNext * 1.35 + 0.5)
+        camera.shake = 0.4
+        player.maxHP = player.maxHP + 10
+        player.hp = player.maxHP
+        player.maxShield = player.maxShield + 12
+        player.shield = player.maxShield
       end
-      ctx.camera.shake = math.max(ctx.camera.shake, 0.15)
-      table.remove(ctx.loots, i)
+      camera.shake = math.max(camera.shake, 0.15)
+      table.remove(loots, i)
     end
     ::continue::
   end
 end
 
 function M.draw()
-  for _,L in ipairs(ctx.loots) do
+  local loots = ctx.get("loots")
+  local gameState = ctx.get("gameState")
+
+  for _,L in ipairs(loots) do
     love.graphics.setColor(0.9,0.8,0.3,1)
-    love.graphics.push(); love.graphics.translate(L.x, L.y); love.graphics.rotate(ctx.state.t*(L.spin or 1))
+    love.graphics.push(); love.graphics.translate(L.x, L.y); love.graphics.rotate(gameState.t*(L.spin or 1))
     love.graphics.polygon("fill", -8,0, 0,8, 8,0, 0,-8)
     love.graphics.pop()
   end

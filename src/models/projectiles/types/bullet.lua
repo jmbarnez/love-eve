@@ -15,7 +15,7 @@ M.size = {radius = 3}
 
 -- Combat properties
 M.damage = 12
-M.speed = 420
+M.speed = 336
 M.lifetime = 1.5
 M.fireRate = 0.5  -- One shot every 2 seconds
 

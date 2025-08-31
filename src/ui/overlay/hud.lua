@@ -1,14 +1,14 @@
-local ctx = require("src.core.state")
+Alocal ctx = require("src.core.state")
 local theme = require("src.ui.theme")
 local bars = require("src.ui.components.bars")
 
 local M = {}
 
 function M.draw()
-  if not ctx.player then return end
+  local p = ctx.get("player")
+  if not p then return end
 
   local W, H = love.graphics.getWidth(), love.graphics.getHeight()
-  local p = ctx.player
 
   -- Enhanced sci-fi status bars (top-left)
   local x, y = 20, 20
@@ -24,18 +24,27 @@ function M.draw()
   -- Energy core
   bars.sciFi(x, y + spacing * 2, w, h, p.energy, p.maxEnergy, theme.energy, "ENERGY", true)
 
-  -- Energy regeneration indicator
-  if p.energy < p.maxEnergy then
-    love.graphics.setColor(theme.energy[1] * 0.7, theme.energy[2] * 0.7, theme.energy[3] * 0.7, 0.6)
-    love.graphics.printf("+REGEN", x, y + spacing * 3 + 2, w, "center")
-  end
-
   -- Status indicators with icons
   love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
 
-  -- Minimap (top-right) - Enhanced with better styling
+  -- FPS counter (top-right) - Above minimap
+  local fps = love.timer.getFPS()
+  local fpsY = 10
+  local fpsX = W - 10
+
+  -- Semi-transparent background for FPS counter
+  love.graphics.setColor(0.1, 0.15, 0.2, 0.8)
+  love.graphics.rectangle("fill", fpsX - 60, fpsY - 5, 60, 25, 2)
+  love.graphics.setColor(theme.border[1], theme.border[2], theme.border[3], 0.6)
+  love.graphics.rectangle("line", fpsX - 60, fpsY - 5, 60, 25, 2)
+
+  -- FPS text
+  love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.9)
+  love.graphics.printf(fps .. " FPS", fpsX - 58, fpsY, 56, "center")
+
+  -- Minimap (below FPS counter) - Enhanced with better styling
   local mapSize = 140
-  local mapX, mapY = W - mapSize - 10, 10
+  local mapX, mapY = W - mapSize - 10, fpsY + 35
 
   -- Minimap background with sci-fi border
   love.graphics.setColor(0.05, 0.08, 0.12, 0.9)
@@ -56,7 +65,10 @@ function M.draw()
     love.graphics.line(mapX, gy, mapX + mapSize, gy)
   end
 
-  local half = ctx.G.WORLD_SIZE
+  local gameState = ctx.get("gameState")
+  local station = ctx.get("station")
+  local enemies = ctx.get("enemies")
+  local half = gameState.G.WORLD_SIZE
   local function toMini(wx, wy)
     local u = (wx + half) / (2 * half)
     local v = (wy + half) / (2 * half)
@@ -64,8 +76,8 @@ function M.draw()
   end
 
   -- Station marker
-  if ctx.station then
-    local sx, sy = toMini(ctx.station.x, ctx.station.y)
+  if station then
+    local sx, sy = toMini(station.x, station.y)
     love.graphics.setColor(theme.energy[1], theme.energy[2], theme.energy[3], 0.9)
     love.graphics.circle("fill", sx, sy, 4)
     love.graphics.setColor(1, 1, 1, 0.8)
@@ -74,7 +86,7 @@ function M.draw()
 
   -- Enemy markers
   love.graphics.setColor(theme.warning[1], theme.warning[2], theme.warning[3], 0.8)
-  for _, e in ipairs(ctx.enemies or {}) do
+  for _, e in ipairs(enemies or {}) do
     local ex, ey = toMini(e.x, e.y)
     love.graphics.rectangle("fill", ex - 2, ey - 2, 4, 4)
     love.graphics.setColor(1, 1, 1, 0.6)
@@ -97,4 +109,3 @@ function M.draw()
 end
 
 return M
-

@@ -43,16 +43,18 @@ local function deserializeLua(str)
   local ok, data = pcall(chunk)
   if not ok or type(data) ~= "table" then return false end
   -- apply to ctx.player
-  if data.player and ctx.player then
+  local player = ctx.get("player")
+  if data.player and player then
     for k,v in pairs(data.player) do 
       if k ~= "vx" and k ~= "vy" then
-        ctx.player[k] = v 
+        player[k] = v 
       end
     end
     -- Always reset to spawn position at docking area
-    ctx.player.x = ctx.station.x + 150
-    ctx.player.y = ctx.station.y
-    ctx.player.docked = false
+    local station = ctx.get("station")
+    player.x = station.x + 150
+    player.y = station.y
+    player.docked = false
   end
   return true
 end

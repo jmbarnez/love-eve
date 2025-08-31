@@ -1,27 +1,30 @@
 
-local ctx    = require("src.core.state")
-local util   = require("src.core.util")
-local ship   = require("src.content.ships.starter")
+local state = require("src.core.state")
+local util = require("src.core.util")
+local ship = require("src.content.ships.starter")
+local config = require("src.core.config")
 
 local M = {}
 
 function M.new()
+  local playerConfig = config.player
   return {
     x=0,y=0, vx=0,vy=0, r=0,
-    radius=14,
-    accel=80,
-    maxSpeed=200,
-    friction=1.0,
-    energy=100, maxEnergy=100, energyRegen=14,
-    hp=100, maxHP=100,
-    shield=120, maxShield=120, shieldRegen=10, shieldCooldown=0, shieldCDMax=2.0,
-    damage=12,
+    radius=playerConfig.radius,
+    accel=playerConfig.accel,
+    maxSpeed=playerConfig.maxSpeed,
+    friction=playerConfig.friction,
+    energy=playerConfig.energy, maxEnergy=playerConfig.maxEnergy, energyRegen=playerConfig.energyRegen,
+    hp=playerConfig.hp, maxHP=playerConfig.maxHP,
+    shield=playerConfig.shield, maxShield=playerConfig.maxShield, shieldRegen=playerConfig.shieldRegen, shieldCooldown=0, shieldCDMax=playerConfig.shieldCDMax,
+    damage=playerConfig.damage,
     fireCooldown=0, -- seconds until next shot allowed
-    fireCooldownMax=2.0, -- fixed cooldown for default attack
-    spread=0.06,
+    fireCooldownMax=playerConfig.fireCooldownMax, -- fixed cooldown for default attack
+    spread=playerConfig.spread,
     lastShot=0,
     credits=0.00,
     inventory={}, -- Player inventory
+    equipment={}, -- Player equipment slots
     level=1,
     xp=0,
     xpToNext=100,
@@ -33,73 +36,88 @@ function M.new()
 end
 
 function M.init()
-  ctx.station = {x=0,y=0}
-  ctx.player = M.new()
+  local station = {x=0,y=0}
+  state.set("station", station)
+  local playerEntity = M.new()
   -- Start near station but not docked
-  ctx.player.x = ctx.station.x + 150  -- offset to the right
-  ctx.player.y = ctx.station.y
-  ctx.player.docked = false
-  ctx.player.r = math.pi  -- face left towards station
+  playerEntity.x = station.x + 150  -- offset to the right
+  playerEntity.y = station.y
+  playerEntity.docked = false
+  playerEntity.r = math.pi  -- face left towards station
+  
+  state.set("player", playerEntity)
   
   -- Initialize inventory with starting items
   M.addToInventory("energy_cells", 200)
   M.addToInventory("repair_kit", 5)
   M.addToInventory("shield_booster", 2)
   M.addToInventory("alien_tech", 1)
+
+  -- Initialize with some ship modules (equipment)
+  M.addToInventory("small_railgun", 2)
+  M.addToInventory("small_shield_booster", 1)
+  M.addToInventory("heat_sink", 1)
+  M.addToInventory("small_capacitor_booster", 1)
 end
 
 local function applyMovement(dt)
-  local p = ctx.player
+  local playerEntity = state.get("player")
+  local playerConfig = config.player
   -- Handle right-click movement
-  if p.moveTarget then
-    local dx = p.moveTarget.x - p.x
-    local dy = p.moveTarget.y - p.y
+  if playerEntity.moveTarget then
+    local dx = playerEntity.moveTarget.x - playerEntity.x
+    local dy = playerEntity.moveTarget.y - playerEntity.y
     local dist = util.len(dx, dy)
     if dist < 15 then
       -- Reached destination
-      p.moveTarget = nil
-      p.vx = p.vx * 0.8  -- Slow down when reaching target
-      p.vy = p.vy * 0.8
+      playerEntity.moveTarget = nil
+      playerEntity.vx = playerEntity.vx * 0.8  -- Slow down when reaching target
+      playerEntity.vy = playerEntity.vy * 0.8
     else
       -- Move toward target
       local ux, uy = dx / dist, dy / dist
-      local desiredSpeed = math.min(p.maxSpeed, dist * 2)  -- Slow down as we approach
-      local dvx, dvy = ux * desiredSpeed - p.vx, uy * desiredSpeed - p.vy
-      p.vx = p.vx + dvx * 5.0 * dt  -- Responsive movement
-      p.vy = p.vy + dvy * 5.0 * dt
+      local desiredSpeed = math.min(playerEntity.maxSpeed, dist * 2)  -- Slow down as we approach
+      local dvx, dvy = ux * desiredSpeed - playerEntity.vx, uy * desiredSpeed - playerEntity.vy
+      playerEntity.vx = playerEntity.vx + dvx * 5.0 * dt  -- Responsive movement
+      playerEntity.vy = playerEntity.vy + dvy * 5.0 * dt
 
       -- Only face movement direction when not recently firing
-      if p.lastShot > 0.5 then  -- 0.5 second grace period after firing
-        p.r = math.atan2(dy, dx)
+      if playerEntity.lastShot > 0.5 then  -- 0.5 second grace period after firing
+        playerEntity.r = math.atan2(dy, dx)
       end
 
       -- Energy consumption for movement (reduced from 12 to 6 per second)
-      p.energy = math.max(0, p.energy - 6 * dt)
+      playerEntity.energy = math.max(0, playerEntity.energy - playerConfig.energyCostMovement * dt)
     end
   else
     -- No target, regenerate energy faster
-    p.energy = math.min(p.maxEnergy, p.energy + p.energyRegen * dt)
+    playerEntity.energy = math.min(playerEntity.maxEnergy, playerEntity.energy + playerEntity.energyRegen * dt)
   end
 end
 
 -- Function to set move target from right-click
 function M.setMoveTarget(x, y)
-  if not ctx.player.docked then
-    ctx.player.moveTarget = {x = x, y = y}
+  local playerEntity = state.get("player")
+  if not playerEntity.docked then
+    playerEntity.moveTarget = {x = x, y = y}
     -- Set temporary visual marker (like League of Legends right-click effect)
-    ctx.player.moveMarker = {x = x, y = y, timer = 1.25} -- 1.25 second duration (twice as fast)
+    local uiConfig = config.ui
+    playerEntity.moveMarker = {x = x, y = y, timer = uiConfig.moveMarkerDuration} -- 1.25 second duration (twice as fast)
   end
 end
 
 -- Function to set attack target
 function M.setAttackTarget(enemy)
-  if not ctx.player.docked then
-    ctx.player.attackTarget = enemy
+  local playerEntity = state.get("player")
+  if not playerEntity.docked then
+    playerEntity.attackTarget = enemy
   end
 end
 
 local function clampPhysics(dt)
-  local p = ctx.player
+  local playerEntity = state.get("player")
+  local gameConfig = state.get("config").game
+  local p = playerEntity
   local spd = util.len(p.vx, p.vy)
   if spd > p.maxSpeed then local s = p.maxSpeed/spd; p.vx = p.vx*s; p.vy = p.vy*s end
 
@@ -107,7 +125,7 @@ local function clampPhysics(dt)
   p.y = p.y + p.vy * dt
 
   -- keep in world
-  local W = ctx.G.WORLD_SIZE
+  local W = gameConfig.WORLD_SIZE
   if p.x < -W then p.x = -W; p.vx = math.abs(p.vx) end
   if p.x > W then p.x = W; p.vx = -math.abs(p.vx) end
   if p.y < -W then p.y = -W; p.vy = math.abs(p.vy) end
@@ -116,13 +134,14 @@ local function clampPhysics(dt)
   -- face mouse
   local mx,my = love.mouse.getPosition()
   local lg = love.graphics
-  local wx = ctx.camera.x + (mx - lg.getWidth()/2)/ctx.G.ZOOM
-  local wy = ctx.camera.y + (my - lg.getHeight()/2)/ctx.G.ZOOM
-  ctx.player.r = math.atan2(wy - p.y, wx - p.x)
+  local camera = state.get("camera")
+  local wx = camera.x + (mx - lg.getWidth()/2)/gameConfig.ZOOM
+  local wy = camera.y + (my - lg.getHeight()/2)/gameConfig.ZOOM
+  p.r = math.atan2(wy - p.y, wx - p.x)
 end
 
 local function regen(dt)
-  local p = ctx.player
+  local p = state.get("player")
   if p.shieldCooldown>0 then p.shieldCooldown = p.shieldCooldown - dt end
   if p.shieldCooldown<=0 then
     p.shield = math.min(p.maxShield, p.shield + p.shieldRegen*dt)
@@ -130,7 +149,9 @@ local function regen(dt)
 end
 
 local function shooting(dt)
-  local p = ctx.player
+  local playerEntity = state.get("player")
+  local playerConfig = config.player
+  local p = playerEntity
   p.lastShot = math.min(p.lastShot + dt, 1.0)  -- Cap at 1 second to prevent overflow
   -- decrease explicit cooldown timer
   p.fireCooldown = math.max(0, (p.fireCooldown or 0) - dt)
@@ -142,7 +163,7 @@ local function shooting(dt)
     local dist = util.len(dx, dy)
 
     -- Only shoot if within reasonable range and have enough energy
-    if dist < 600 and p.fireCooldown <= 0 and p.energy >= 4 then
+    if dist < 600 and p.fireCooldown <= 0 and p.energy >= playerConfig.energyCostPerShot then
       -- Face the target
       p.r = math.atan2(dy, dx)
 
@@ -152,12 +173,13 @@ local function shooting(dt)
       projectiles.createFromOwner(p, bullet, p.attackTarget)
 
       -- Consume energy for shooting (reduced from 8 to 4 per shot)
-      p.energy = math.max(0, p.energy - 4)
+      p.energy = math.max(0, p.energy - playerConfig.energyCostPerShot)
 
       -- reset timers
       p.lastShot = 0
       p.fireCooldown = p.fireCooldownMax
-      ctx.camera.shake = math.min(0.05, ctx.camera.shake + 0.01)
+      local camera = state.get("camera")
+      camera.shake = math.min(0.05, camera.shake + 0.01)
     end
   else
     -- Clear dead target
@@ -178,49 +200,59 @@ function M.update(dt)
   shooting(dt)
   
   -- Update move marker timer
-  if ctx.player.moveMarker.timer > 0 then
-    ctx.player.moveMarker.timer = ctx.player.moveMarker.timer - dt
+  local playerEntity = state.get("player")
+  local uiConfig = config.ui
+  if playerEntity.moveMarker.timer > 0 then
+    playerEntity.moveMarker.timer = playerEntity.moveMarker.timer - dt
   end
 end
 
 function M.addToInventory(itemType, quantity)
-  if not ctx.player.inventory[itemType] then
-    ctx.player.inventory[itemType] = 0
+  local playerEntity = state.get("player")
+  if not playerEntity.inventory[itemType] then
+    playerEntity.inventory[itemType] = 0
   end
-  ctx.player.inventory[itemType] = ctx.player.inventory[itemType] + quantity
+  playerEntity.inventory[itemType] = playerEntity.inventory[itemType] + quantity
 end
 
 function M.removeFromInventory(itemType, quantity)
-  if ctx.player.inventory[itemType] and ctx.player.inventory[itemType] >= quantity then
-    ctx.player.inventory[itemType] = ctx.player.inventory[itemType] - quantity
+  local playerEntity = state.get("player")
+  if playerEntity.inventory[itemType] and playerEntity.inventory[itemType] >= quantity then
+    playerEntity.inventory[itemType] = playerEntity.inventory[itemType] - quantity
     return true
   end
   return false
 end
 
 function M.getInventoryCount(itemType)
-  return ctx.player.inventory[itemType] or 0
+  local playerEntity = state.get("player")
+  return playerEntity.inventory[itemType] or 0
 end
 
 function M.hasItem(itemType, quantity)
-  return (ctx.player.inventory[itemType] or 0) >= quantity
+  local playerEntity = state.get("player")
+  return (playerEntity.inventory[itemType] or 0) >= quantity
 end
 
 function M.getEnemyUnderMouse()
   local mx, my = love.mouse.getPosition()
+  local uiConfig = config.ui
 
   -- Convert screen coordinates to world coordinates
-  local wx = ctx.camera.x + (mx - love.graphics.getWidth()/2) / ctx.G.ZOOM
-  local wy = ctx.camera.y + (my - love.graphics.getHeight()/2) / ctx.G.ZOOM
+  local camera = state.get("camera")
+  local gameConfig = state.get("config").game
+  local wx = camera.x + (mx - love.graphics.getWidth()/2) / gameConfig.ZOOM
+  local wy = camera.y + (my - love.graphics.getHeight()/2) / gameConfig.ZOOM
 
   -- Check each enemy to see if mouse is over it
-  for _, enemy in ipairs(ctx.enemies) do
+  local enemies = state.get("enemies")
+  for _, enemy in ipairs(enemies) do
     local dx = wx - enemy.x
     local dy = wy - enemy.y
     local distance = util.len(dx, dy)
 
     -- Use a slightly larger radius for mouse interaction (same as the green circle)
-    if distance <= enemy.radius + 12 then
+    if distance <= enemy.radius + uiConfig.interactionRadiusOffset then
       return enemy
     end
   end
@@ -229,11 +261,13 @@ function M.getEnemyUnderMouse()
 end
 
 local function drawShield()
-  local p = ctx.player
+  local playerEntity = state.get("player")
+  local projectileConfig = config.projectiles
+  local p = playerEntity
   
   -- Only show shield when it's actively blocking damage (shieldCooldown > 0)
   if p.shield > 0 and p.shieldCooldown > 0 then
-    local shieldRadius = p.radius + 8
+    local shieldRadius = p.radius + projectileConfig.shieldRadiusOffset
     
     -- Simple blue circle shield
     love.graphics.setColor(0.2, 0.4, 1.0, 0.6)
@@ -244,20 +278,22 @@ local function drawShield()
 end
 
 function M.draw()
-  ship.draw(ctx.player.x, ctx.player.y, ctx.player.r, 1.0, util.len(ctx.player.vx, ctx.player.vy)/ctx.player.maxSpeed)
+  local playerEntity = state.get("player")
+  local uiConfig = config.ui
+  ship.draw(playerEntity.x, playerEntity.y, playerEntity.r, 1.0, util.len(playerEntity.vx, playerEntity.vy)/playerEntity.maxSpeed)
   drawShield()
   
   -- Draw attack target indicator
-  if ctx.player.attackTarget and ctx.player.attackTarget.hp > 0 then
+  if playerEntity.attackTarget and playerEntity.attackTarget.hp > 0 then
     love.graphics.setColor(1.0, 0.5, 0.0, 0.8) -- Orange indicator
-    love.graphics.circle("line", ctx.player.attackTarget.x, ctx.player.attackTarget.y, ctx.player.attackTarget.radius + 6)
+    love.graphics.circle("line", playerEntity.attackTarget.x, playerEntity.attackTarget.y, playerEntity.attackTarget.radius + uiConfig.attackIndicatorRadiusOffset)
     love.graphics.setColor(1,1,1,1)
   end
   
   -- Draw temporary move marker (League of Legends style)
-  if ctx.player.moveMarker.timer > 0 then
-    local marker = ctx.player.moveMarker
-    local alpha = marker.timer / 1.25 -- Fade from 1.0 to 0.0 over 1.25 seconds
+  if playerEntity.moveMarker.timer > 0 then
+    local marker = playerEntity.moveMarker
+    local alpha = marker.timer / uiConfig.moveMarkerDuration -- Fade from 1.0 to 0.0 over 1.25 seconds
     local radius = 20 + (1 - alpha) * 10 -- Expand slightly as it fades
     
     -- Outer ring
@@ -279,11 +315,156 @@ function M.draw()
 end
 
 function M.regenDocked(dt)
-  local p = ctx.player
+  local playerEntity = state.get("player")
+  local playerConfig = config.player
   -- Faster regen when docked
-  p.hp = math.min(p.maxHP, p.hp + 20*dt)
-  p.shield = math.min(p.maxShield, p.shield + 30*dt)
-  p.energy = math.min(p.maxEnergy, p.energy + 40*dt)
+  playerEntity.hp = math.min(playerEntity.maxHP, playerEntity.hp + 20*dt)
+  playerEntity.shield = math.min(playerEntity.maxShield, playerEntity.shield + 30*dt)
+  playerEntity.energy = math.min(playerEntity.maxEnergy, playerEntity.energy + 40*dt)
+end
+
+-- Equipment management functions
+function M.equipItem(slotId, itemId)
+  local playerEntity = state.get("player")
+  local items = require("src.models.items.registry")
+  local itemDef = items.get(itemId)
+
+  if not itemDef then return false, "Unknown item" end
+  if not itemDef.slot_type then return false, "Item is not equipment" end
+
+  -- Check if item can fit in this slot
+  local slotType = ""
+  if string.find(slotId, "high_power") then slotType = "high_power"
+  elseif string.find(slotId, "mid_power") then slotType = "mid_power"
+  elseif string.find(slotId, "low_power") then slotType = "low_power"
+  elseif string.find(slotId, "rigs") then slotType = "rig"
+  elseif string.find(slotId, "drone") then slotType = "drone"
+  end
+
+  if itemDef.slot_type ~= slotType then return false, "Item cannot fit in this slot" end
+
+  -- Check if player has this item in inventory
+  if not playerEntity.inventory[itemId] or playerEntity.inventory[itemId] < 1 then
+    return false, "Item not in inventory"
+  end
+
+  -- Unequip existing item if any
+  if playerEntity.equipment[slotId] then
+    local existingItem = playerEntity.equipment[slotId]
+    M.removeFromInventory(existingItem, 1)
+    M.addToInventory(existingItem, 1) -- Add back to inventory
+  end
+
+  -- Equip the new item
+  playerEntity.equipment[slotId] = itemId
+  M.removeFromInventory(itemId, 1)
+
+  -- Update player stats
+  local ship = require("src.content.ships.starter")
+  playerEntity.maxHP = ship.maxHP
+  playerEntity.maxShield = ship.maxShield
+  playerEntity.maxEnergy = ship.maxEnergy
+  playerEntity.damage = ship.damage
+  playerEntity.maxSpeed = ship.maxSpeed
+  playerEntity.accel = ship.accel
+  playerEntity.energyRegen = 10
+  playerEntity.shieldRegen = 15
+
+  -- Apply equipment bonuses
+  for eqSlotId, eqItemId in pairs(playerEntity.equipment or {}) do
+    local eqItemDef = items.get(eqItemId)
+    if eqItemDef and eqItemDef.slot_type and eqItemDef.stats then
+      local eqSlotType = ""
+      if string.find(eqSlotId, "high_power") then eqSlotType = "high_power"
+      elseif string.find(eqSlotId, "mid_power") then eqSlotType = "mid_power"
+      elseif string.find(eqSlotId, "low_power") then eqSlotType = "low_power"
+      elseif string.find(eqSlotId, "rigs") then eqSlotType = "rig"
+      elseif string.find(eqSlotId, "drone") then eqSlotType = "drone"
+      end
+
+      if eqItemDef.slot_type == eqSlotType then
+        for stat, value in pairs(eqItemDef.stats) do
+          if playerEntity[stat] then
+            playerEntity[stat] = playerEntity[stat] + value
+          end
+        end
+      end
+    end
+  end
+
+  return true, "Equipped " .. itemDef.name
+end
+
+function M.unequipItem(slotId)
+  local playerEntity = state.get("player")
+
+  if not playerEntity.equipment[slotId] then return false, "No item equipped in this slot" end
+
+  local itemId = playerEntity.equipment[slotId]
+  local items = require("src.models.items.registry")
+  local itemDef = items.get(itemId)
+
+  -- Add item back to inventory
+  M.addToInventory(itemId, 1)
+
+  -- Remove from equipment
+  playerEntity.equipment[slotId] = nil
+
+  -- Update player stats (this will remove the bonuses)
+  local ship = require("src.content.ships.starter")
+  playerEntity.maxHP = ship.maxHP
+  playerEntity.maxShield = ship.maxShield
+  playerEntity.maxEnergy = ship.maxEnergy
+  playerEntity.damage = ship.damage
+  playerEntity.maxSpeed = ship.maxSpeed
+  playerEntity.accel = ship.accel
+  playerEntity.energyRegen = 10
+  playerEntity.shieldRegen = 15
+
+  -- Re-apply all remaining equipment bonuses
+  for eqSlotId, eqItemId in pairs(playerEntity.equipment or {}) do
+    if eqSlotId ~= slotId then
+      local eqItemDef = items.get(eqItemId)
+      if eqItemDef and eqItemDef.slot_type and eqItemDef.stats then
+        local eqSlotType = ""
+        if string.find(eqSlotId, "high_power") then eqSlotType = "high_power"
+        elseif string.find(eqSlotId, "mid_power") then eqSlotType = "mid_power"
+        elseif string.find(eqSlotId, "low_power") then eqSlotType = "low_power"
+        elseif string.find(eqSlotId, "rigs") then eqSlotType = "rig"
+        elseif string.find(eqSlotId, "drone") then eqSlotType = "drone"
+        end
+
+        if eqItemDef.slot_type == eqSlotType then
+          for stat, value in pairs(eqItemDef.stats) do
+            if playerEntity[stat] then
+              playerEntity[stat] = playerEntity[stat] + value
+            end
+          end
+        end
+      end
+    end
+  end
+
+  return true, "Unequipped " .. (itemDef and itemDef.name or itemId)
+end
+
+function M.getEquipment()
+  local playerEntity = state.get("player")
+  return playerEntity.equipment or {}
+end
+
+function M.getTotalStats()
+  local playerEntity = state.get("player")
+  return {
+    maxHP = playerEntity.maxHP or 100,
+    maxShield = playerEntity.maxShield or 120,
+    maxEnergy = playerEntity.maxEnergy or 100,
+    damage = playerEntity.damage or 16,
+    maxSpeed = playerEntity.maxSpeed or 300,
+    accel = playerEntity.accel or 120,
+    energyRegen = playerEntity.energyRegen or 10,
+    shieldRegen = playerEntity.shieldRegen or 15
+  }
 end
 
 return M

@@ -15,7 +15,7 @@ M.size = {width = 10, height = 6}
 
 -- Combat properties
 M.damage = 16
-M.speed = 800
+M.speed = 640
 M.lifetime = 5.0
 M.fireRate = 2.0
 M.homingRange = 300

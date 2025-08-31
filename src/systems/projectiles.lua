@@ -1,8 +1,6 @@
--- Universal Projectile System
--- Handles all projectile types: bullets, rockets, missiles, etc.
-
-local ctx   = require("src.core.state")
-local util  = require("src.core.util")
+local state = require("src.core.state")
+local util = require("src.core.util")
+local config = require("src.core.config")
 
 local M = {}
 
@@ -45,20 +43,22 @@ function M.createFromOwner(owner, weapon, target)
   local pvy = math.sin(angle) * spd + (owner.vy or 0) * 0.3
   
   local projectile = newProjectile(px, py, pvx, pvy, weapon, owner, target)
-  table.insert(ctx.projectiles, projectile)
+  local projectiles = state.get("projectiles")
+  table.insert(projectiles, projectile)
   return projectile
 end
 
 -- Shield collision detection
 local function checkShieldHit(projectile, target)
-  local shieldRadius = target.radius + 8
+  local projectileConfig = config.projectiles
+  local shieldRadius = target.radius + projectileConfig.shieldRadiusOffset
   local distToCenter = util.len(projectile.x - target.x, projectile.y - target.y)
   
-  if target.shield > 0 and distToCenter <= shieldRadius then
+  if target.shield and target.shield > 0 and distToCenter <= shieldRadius then
     target.shieldCooldown = target.shieldCDMax
     
     -- Bullets do less damage to shields
-    local damageMultiplier = projectile.weapon.type == "bullet" and 0.5 or 1.0
+    local damageMultiplier = projectile.weapon.type == "bullet" and projectileConfig.bulletShieldDamageMultiplier or 1.0
     local damageToShield = math.min(target.shield, projectile.damage * damageMultiplier)
     target.shield = target.shield - damageToShield
     target.shieldVisible = true
@@ -69,13 +69,15 @@ end
 
 -- Hit enemy
 local function hitEnemy(projectile, enemyIndex)
-  local e = ctx.enemies[enemyIndex]
+  local enemies = state.get("enemies")
+  local e = enemies[enemyIndex]
   if not e then return end
   
   -- Check shield first
   if checkShieldHit(projectile, e) then
     e.state = "aggro"
-    table.remove(ctx.projectiles, projectile._i)
+    local projectiles = state.get("projectiles")
+    table.remove(projectiles, projectile._i)
     return
   end
   
@@ -83,62 +85,69 @@ local function hitEnemy(projectile, enemyIndex)
   local enemy = require("src.entities.enemy")
   enemy.onHit(e, projectile.damage)
   
-    table.remove(ctx.projectiles, projectile._i)
+  local projectiles = state.get("projectiles")
+  table.remove(projectiles, projectile._i)
 end
 
 -- Hit player
 local function hitPlayer(projectile)
-  local p = ctx.player
+  local playerEntity = state.get("player")
+  local particles = state.get("particles")
+  local camera = state.get("camera")
   
   -- Check shield first
-  if checkShieldHit(projectile, p) then
+  if checkShieldHit(projectile, playerEntity) then
     -- Make enemy that fired this aggressive
-    if projectile.owner and projectile.owner ~= ctx.player then
+    if projectile.owner and projectile.owner ~= playerEntity then
       local enemy = require("src.entities.enemy")
       enemy.makeAggressive(projectile.owner)
     end
-    table.remove(ctx.projectiles, projectile._i)
+    local projectiles = state.get("projectiles")
+    table.remove(projectiles, projectile._i)
     return
   end
   
-  p.hp = p.hp - projectile.damage
+  playerEntity.hp = playerEntity.hp - projectile.damage
   
   -- Make enemy aggressive
-  if projectile.owner and projectile.owner ~= ctx.player then
+  if projectile.owner and projectile.owner ~= playerEntity then
     local enemy = require("src.entities.enemy")
     enemy.makeAggressive(projectile.owner)
   end
   
-    table.remove(ctx.projectiles, projectile._i)
+  local projectiles = state.get("projectiles")
+  table.remove(projectiles, projectile._i)
   
   -- Handle player death
-  if p.hp <= 0 then
-    ctx.camera.shake = 1.0
+  if playerEntity.hp <= 0 then
+    camera.shake = 1.0
     for k = 1, 40 do
-      table.insert(ctx.particles, {
-        x = p.x, y = p.y,
+      table.insert(particles, {
+        x = playerEntity.x, y = playerEntity.y,
         vx = util.randf(-120, 120),
         vy = util.randf(-120, 120),
         life = util.randf(0.6, 1.2)
       })
     end
     -- Respawn
-    p.x = ctx.station.x + 150
-    p.y = ctx.station.y
-    p.docked = false
-    p.vx, p.vy = 0, 0
-    p.hp = math.max(30, math.floor(p.maxHP * 0.6))
-    p.shield = math.max(40, math.floor(p.maxShield * 0.6))
-    p.energy = p.maxEnergy
+    playerEntity.x = state.get("station").x + 150
+    playerEntity.y = state.get("station").y
+    playerEntity.docked = false
+    playerEntity.vx, playerEntity.vy = 0, 0
+    playerEntity.hp = math.max(30, math.floor(playerEntity.maxHP * 0.6))
+    playerEntity.shield = math.max(40, math.floor(playerEntity.maxShield * 0.6))
+    playerEntity.energy = playerEntity.maxEnergy
   end
 end
 
 -- Find nearest enemy target for projectile
 local function findNearestEnemy(projectile, maxRange)
+  local enemies = state.get("enemies")
+  local projectileConfig = config.projectiles
   local nearestEnemy = nil
-  local nearestDist = maxRange or 400  -- 400 unit lock-on range
+  local nearestDist = maxRange or projectileConfig.lockOnRange  -- 400 unit lock-on range
   
-  for _, enemy in ipairs(ctx.enemies) do
+  for _, enemy in ipairs(enemies) do
     if enemy.hp > 0 then
       local dx = enemy.x - projectile.x
       local dy = enemy.y - projectile.y
@@ -156,11 +165,12 @@ end
 
 -- Update homing behavior
 local function updateHoming(projectile, dt)
+  local projectileConfig = config.projectiles
   -- Handle lock-on delay for rockets
   if projectile.weapon.type == "rocket" and not projectile.hasLockedOn then
     projectile.lockOnTimer = projectile.lockOnTimer + dt
     
-    if projectile.lockOnTimer >= projectile.lockOnDelay then
+    if projectile.lockOnTimer >= projectileConfig.lockOnDelay then
       -- Time to lock onto nearest enemy
       projectile.target = findNearestEnemy(projectile)
       projectile.hasLockedOn = true
@@ -197,7 +207,7 @@ local function updateHoming(projectile, dt)
       projectile.vy = projectile.vy + (targetVy - projectile.vy) * homingStrength
     else
       -- Direct tracking for bolts and bullets
-      if projectile.owner ~= ctx.player then
+      if projectile.owner ~= state.get("player") then
         -- Enemy projectiles get perfect tracking to ensure hits
         projectile.vx = targetVx
         projectile.vy = targetVy
@@ -214,8 +224,9 @@ end
 
 -- Main update function
 function M.update(dt)
-  for i = #ctx.projectiles, 1, -1 do
-    local p = ctx.projectiles[i]
+  local projectiles = state.get("projectiles")
+  for i = #projectiles, 1, -1 do
+    local p = projectiles[i]
     p._i = i
     
     -- Update homing if applicable
@@ -230,15 +241,16 @@ function M.update(dt)
     
     -- Remove if expired
     if p.life <= 0 then
-      table.remove(ctx.projectiles, i)
+      table.remove(projectiles, i)
       goto continue
     end
     
     -- Collision detection
-    if p.owner == ctx.player then
+    if p.owner == state.get("player") then
       -- Player projectile hitting enemies
-      for j = #ctx.enemies, 1, -1 do
-        local e = ctx.enemies[j]
+      local enemies = state.get("enemies")
+      for j = #enemies, 1, -1 do
+        local e = enemies[j]
         if util.len2(p.x - e.x, p.y - e.y) <= (e.radius + p.radius) * (e.radius + p.radius) then
           hitEnemy(p, j)
           break
@@ -246,8 +258,8 @@ function M.update(dt)
       end
     else
       -- Enemy projectile hitting player
-      local player = ctx.player
-      if util.len2(p.x - player.x, p.y - player.y) <= (player.radius + p.radius) * (player.radius + p.radius) then
+      local playerEntity = state.get("player")
+      if util.len2(p.x - playerEntity.x, p.y - playerEntity.y) <= (playerEntity.radius + p.radius) * (playerEntity.radius + p.radius) then
         hitPlayer(p)
       end
     end
@@ -258,7 +270,8 @@ end
 
 -- Render all projectiles
 function M.draw()
-  for _, p in ipairs(ctx.projectiles) do
+  local projectiles = state.get("projectiles")
+  for _, p in ipairs(projectiles) do
     local rot = math.atan2(p.vy, p.vx)
     p.weapon.draw(p.x, p.y, rot)
   end
@@ -266,7 +279,7 @@ end
 
 -- Initialize projectiles array in context
 function M.init()
-  ctx.projectiles = ctx.projectiles or {}
+  state.set("projectiles", {})
 end
 
 return M

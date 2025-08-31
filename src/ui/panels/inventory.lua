@@ -1,4 +1,4 @@
-local ctx = require("src.core.state")
+local state = require("src.core.state")
 local theme = require("src.ui.theme")
 local item_icon = require("src.ui.components.item_icon")
 local tooltip = require("src.ui.components.tooltip")
@@ -19,7 +19,8 @@ local function getItemDisplayName(id)
 end
 
 local function totalInventoryItems()
-  local inv = ctx.player and ctx.player.inventory or {}
+  local playerEntity = state.get("player")
+  local inv = playerEntity and playerEntity.inventory or {}
   local n = 0
   for _, q in pairs(inv) do if q > 0 then n = n + q end end
   return n
@@ -39,7 +40,8 @@ function Panel.update(dt)
 end
 
 function Panel.draw()
-  if not Panel.open or not ctx.player then return end
+  local playerEntity = state.get("player")
+  if not Panel.open or not playerEntity then return end
   local W, H = love.graphics.getWidth(), love.graphics.getHeight()
   local WND_W, WND_H = 600, 400
   if not Panel.x or not Panel.y then
@@ -58,7 +60,7 @@ function Panel.draw()
   local mx, my = love.mouse.getPosition()
 
   local list = {}
-  for t, q in pairs(ctx.player.inventory or {}) do
+  for t, q in pairs(playerEntity.inventory or {}) do
     if q > 0 then table.insert(list, {type = t, quantity = q}) end
   end
 
@@ -115,7 +117,7 @@ function Panel.draw()
   love.graphics.line(x, y + WND_H - 25, x + WND_W, y + WND_H - 25)
   love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
   credit.draw(x + 10, y + WND_H - 18 - 2, 12)
-  love.graphics.printf(string.format("Credits: %s", ctx.player.credits >= 1000000 and string.format("%.1fM", ctx.player.credits/1000000) or string.format("%.2f", ctx.player.credits)),
+  love.graphics.printf(string.format("Credits: %s", playerEntity.credits >= 1000000 and string.format("%.1fM", playerEntity.credits/1000000) or string.format("%.2f", playerEntity.credits)),
                       x + 26, y + WND_H - 18, 200, "left")
   love.graphics.printf(string.format("%d items", totalInventoryItems()), x, y + WND_H - 18, WND_W - 10, "right")
 end

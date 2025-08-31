@@ -16,7 +16,8 @@ function M.update(dt)
     end
 
     -- Check for player interaction (close enough and pressing E)
-    local dx, dy = ctx.player.x - box.x, ctx.player.y - box.y
+    local player = ctx.get("player")
+    local dx, dy = player.x - box.x, player.y - box.y
     local dist = util.len(dx, dy)
 
     if dist < 50 then  -- Interaction range
@@ -24,8 +25,8 @@ function M.update(dt)
       if love.keyboard.isDown("e") and not box.interacted then
         box.interacted = true
         -- Open container window instead of instant loot
-        ctx.currentContainer = box
-        ctx.containerOpen = true
+        ctx.set("currentContainer", box)
+        ctx.set("containerOpen", true)
         -- Do not remove box yet; wait for window close
         goto continue
       end
@@ -58,9 +59,10 @@ end
 function M.openLootBox(box)
   local items = require("src.models.items.registry")
   local player = require("src.entities.player")
-  
+  local playerEntity = ctx.get("player")
+
   if box.contents.credits then
-    ctx.player.credits = ctx.player.credits + box.contents.credits
+    playerEntity.credits = playerEntity.credits + box.contents.credits
     M.showNotification("+" .. string.format("%.2f", box.contents.credits) .. " Credits", {0.9, 0.8, 0.3, 1})
   end
   
@@ -85,14 +87,16 @@ function M.openLootBox(box)
     })
   end
 
-  ctx.camera.shake = math.max(ctx.camera.shake, 0.2)
+  local camera = ctx.get("camera")
+  camera.shake = math.max(camera.shake, 0.2)
 end
 
 function M.draw()
+  local gameState = ctx.get("gameState")
   for _, box in ipairs(ctx.lootBoxes) do
     love.graphics.push()
     love.graphics.translate(box.x, box.y)
-    love.graphics.rotate(ctx.state.t * (box.spin or 1))
+    love.graphics.rotate(gameState.t * (box.spin or 1))
 
     -- Simple basic container visual
     love.graphics.setColor(0.7, 0.7, 0.8, 1)

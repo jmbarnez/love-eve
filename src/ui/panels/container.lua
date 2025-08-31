@@ -1,4 +1,4 @@
-local ctx = require("src.core.state")
+local state = require("src.core.state")
 local theme = require("src.ui.theme")
 local item_icon = require("src.ui.components.item_icon")
 local tooltip = require("src.ui.components.tooltip")
@@ -31,7 +31,9 @@ local function collectItems(container)
 end
 
 function Panel.isOpen()
-  return ctx.containerOpen and ctx.currentContainer ~= nil
+  local containerOpen = state.get("containerOpen")
+  local currentContainer = state.get("currentContainer")
+  return containerOpen and currentContainer ~= nil
 end
 
 function Panel.update(dt)
@@ -57,7 +59,7 @@ function Panel.draw()
   local perRow = math.floor((mainW - 20) / (itemSize + spacing))
   local mx, my = love.mouse.getPosition()
 
-  local items = collectItems(ctx.currentContainer.contents)
+  local items = collectItems(state.get("currentContainer").contents)
 
   local hoveredItems = {}  -- Store hovered items to draw tooltips last
 
@@ -115,14 +117,16 @@ function Panel.mousepressed(x, y, button)
   local wx, wy = Panel.x or 0, Panel.y or 0
   if window.isInTitle(x, y, wx, wy, WND_W) then
     if window.isInRect(x, y, window.closeRect(wx, wy, WND_W)) then
-      ctx.containerOpen = false
+      state.set("containerOpen", false)
       -- Remove current container (if still present)
-      if ctx.currentContainer then
-        for i, box in ipairs(ctx.lootBoxes) do
-          if box == ctx.currentContainer then table.remove(ctx.lootBoxes, i); break end
+      local currentContainer = state.get("currentContainer")
+      if currentContainer then
+        local lootBoxes = state.get("lootBoxes")
+        for i, box in ipairs(lootBoxes) do
+          if box == currentContainer then table.remove(lootBoxes, i); break end
         end
       end
-      ctx.currentContainer = nil
+      state.set("currentContainer", nil)
       return true
     end
     drag.start(Panel, x, y)
@@ -134,7 +138,7 @@ function Panel.mousepressed(x, y, button)
   local mainW, mainH = 600 - 1, 400 - 30
   local itemSize, spacing = 64, 8
   local perRow = math.floor((mainW - 20) / (itemSize + spacing))
-  local items = collectItems(ctx.currentContainer.contents or {})
+  local items = collectItems(state.get("currentContainer").contents or {})
   for i, item in ipairs(items) do
     local row = math.floor((i - 1) / perRow)
     local col = (i - 1) % perRow
@@ -142,12 +146,13 @@ function Panel.mousepressed(x, y, button)
     local iy = mainY + row * (itemSize + spacing + 20)
     if x >= ix and x <= ix + itemSize and y >= iy and y <= iy + itemSize then
       if item.type == "credits" then
-        ctx.player.credits = ctx.player.credits + item.quantity
+        local playerEntity = state.get("player")
+        playerEntity.credits = playerEntity.credits + item.quantity
       else
         local player = require("src.entities.player")
         player.addToInventory(item.type, item.quantity)
       end
-      ctx.currentContainer.contents[item.type] = nil
+      state.get("currentContainer").contents[item.type] = nil
       loot_box.showNotification("+" .. item.quantity .. " " .. (item.name or item.type), {0, 1, 0, 1})
       return true
     end
@@ -160,12 +165,13 @@ function Panel.mousepressed(x, y, button)
     if x >= bx and x <= bx + 100 and y >= by and y <= by + 30 then
       for _, item in ipairs(items) do
         if item.type == "credits" then
-          ctx.player.credits = ctx.player.credits + item.quantity
+          local playerEntity = state.get("player")
+          playerEntity.credits = playerEntity.credits + item.quantity
         else
           local player = require("src.entities.player")
           player.addToInventory(item.type, item.quantity)
         end
-        ctx.currentContainer.contents[item.type] = nil
+        state.get("currentContainer").contents[item.type] = nil
       end
       loot_box.showNotification("Took all items", {0, 1, 0, 1})
       return true

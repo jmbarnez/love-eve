@@ -1,12 +1,10 @@
 -- DarkOrbit-style Single Player (Refactored) — LÖVE 11.x
--- No premium currencies. Single-player only.
--- By ChatGPT (GPL-3.0-or-later)
 
-local ctx      = require("src.core.state")
+local state = require("src.core.state")
 local settings = require("src.core.settings")
-local camera   = require("src.core.camera")
-local save     = require("src.core.persistence.save")
-local util     = require("src.core.util")
+local camera = require("src.core.camera")
+local save = require("src.core.persistence.save")
+local util = require("src.core.util")
 
 local player   = require("src.entities.player")
 local enemies  = require("src.entities.enemy")
@@ -21,43 +19,45 @@ local simpleUI = require("src.ui.simple_ui")
 function love.load()
   love.window.setTitle("DarkOrbit-like (Single Player, Refactored)")
   love.window.setMode(0, 0, {fullscreen=true, resizable=true, vsync=1})
+  love.graphics.setDefaultFilter("nearest", "nearest")
 
-  ctx.G = settings.build()
-  ctx.state = { t = 0, paused=false, showHelp=true, autosaveTimer=0 }
-  ctx.fonts = {
-    small = love.graphics.newFont(12),
-    normal = love.graphics.newFont(14),
-    big = love.graphics.newFont(20),
-  }
-  love.graphics.setFont(ctx.fonts.normal)
+  -- Initialize state system
+  state.init()
+
+  local gameState = state.get("gameState")
+  local config = state.get("config") or require("src.core.config") or { game = { AUTOSAVE_INTERVAL = 60, ZOOM = 1.0 } }
+  gameState.G = config.game or { AUTOSAVE_INTERVAL = 60, ZOOM = 1.0 }
 
   world.init()
   player.init()
   enemies.init()
+  loot.init()
   projectiles.init()
   dock.init()
   simpleUI.init()
 
   -- Attempt to load existing save
   save.load()
-
-  -- ctx.state.fireTimer = 0  -- Removed: Using player's fireCooldown system instead
-  -- ctx.G.TIME_SCALE = 0.5   -- Removed: No time scaling needed
 end
 
 function love.update(dt)
-  if ctx.state.paused then return end
+  local gameState = state.get("gameState")
+  local config = state.get("config") or require("src.core.config") or { game = { AUTOSAVE_INTERVAL = 60, ZOOM = 1.0 } }
+  local gameConfig = config.game or { AUTOSAVE_INTERVAL = 60, ZOOM = 1.0 }
+
+  if gameState.paused then return end
   dt = math.min(dt, 1/30)  -- Cap delta time to prevent large jumps
-  ctx.state.t = ctx.state.t + dt
-  ctx.state.autosaveTimer = ctx.state.autosaveTimer + dt
-  if ctx.state.autosaveTimer > ctx.G.AUTOSAVE_INTERVAL then
-    ctx.state.autosaveTimer = 0
+  gameState.t = gameState.t + dt
+  gameState.autosaveTimer = gameState.autosaveTimer + dt
+  if gameState.autosaveTimer > gameConfig.AUTOSAVE_INTERVAL then
+    gameState.autosaveTimer = 0
     save.save()
   end
 
   camera.update(dt)
 
-  if ctx.player.docked then
+  local playerEntity = state.get("player")
+  if playerEntity.docked then
     player.regenDocked(dt)
   else
     player.update(dt)
@@ -68,22 +68,22 @@ function love.update(dt)
   end
   
   simpleUI.update(dt)
-  
-  -- Removed fireTimer update - using player's fireCooldown system instead
 end
 
 function love.draw()
+  local gameState = state.get("gameState")
+
   camera.push()
   world.draw()
-  lootBox.draw()  -- Draw loot boxes
   camera.pop()
 
   -- Minimal Sci-Fi HUD System
-  if ctx.player.docked then dock.draw() end
+  local playerEntity = state.get("player")
+  if playerEntity.docked then dock.draw() end
   
   simpleUI.draw()
 
-  if ctx.state.paused then
+  if gameState.paused then
     local lg = love.graphics
     lg.push(); lg.origin()
     lg.setColor(0,0,0,0.5); lg.rectangle("fill", 0,0, lg.getWidth(), lg.getHeight())
@@ -93,28 +93,40 @@ function love.draw()
 end
 
 function love.keypressed(key)
+  local gameState = state.get("gameState")
+
   -- Let UI handle input first
   if simpleUI.keypressed(key) then return end
   
-  if key == "escape" then ctx.state.paused = not ctx.state.paused end
+  if key == "escape" then gameState.paused = not gameState.paused end
   -- Tab now opens inventory (handled by UI)
-  if key == "h" then ctx.state.showHelp = not ctx.state.showHelp end
-  if key == "space" then ctx.player.vx, ctx.player.vy = ctx.player.vx*0.2, ctx.player.vy*0.2 end
+  if key == "h" then gameState.showHelp = not gameState.showHelp end
+  if key == "space" then
+    local playerEntity = state.get("player")
+    playerEntity.vx, playerEntity.vy = playerEntity.vx*0.2, playerEntity.vy*0.2
+  end
   if key == "f5" then save.save() end
   if key == "f9" then save.load() end
-  if key == "c" then ctx.player.attackTarget = nil end -- Clear attack target
+  if key == "c" then
+    local playerEntity = state.get("player")
+    playerEntity.attackTarget = nil
+  end
   if key == "e" then
-    local dx,dy = ctx.player.x - ctx.station.x, ctx.player.y - ctx.station.y
-    if util.len(dx,dy) < 320 then ctx.player.docked = not ctx.player.docked end
+    local playerEntity = state.get("player")
+    local station = state.get("station")
+    local dx,dy = playerEntity.x - station.x, playerEntity.y - station.y
+    if util.len(dx,dy) < 320 then playerEntity.docked = not playerEntity.docked end
   end
   -- Removed manual fire key - using auto-attack system instead
 end
 
 function love.mousepressed(x,y,btn)
+  local playerEntity = state.get("player")
+
   -- Let UI handle mouse input first
   if simpleUI.mousepressed(x, y, btn) then return end
   
-  if ctx.player.docked then
+  if playerEntity.docked then
     if btn == 1 then dock.click(x, y) end
     return
   end
@@ -127,8 +139,11 @@ function love.mousepressed(x,y,btn)
   elseif btn == 2 then
     -- Right click to move
     local lg = love.graphics
-    local wx = ctx.camera.x + (x - lg.getWidth()/2)/ctx.G.ZOOM
-    local wy = ctx.camera.y + (y - lg.getHeight()/2)/ctx.G.ZOOM
+    local camera = state.get("camera")
+    local config = state.get("config") or require("src.core.config") or { game = { ZOOM = 1.0 } }
+    local gameConfig = config.game or { ZOOM = 1.0 }
+    local wx = camera.x + (x - lg.getWidth()/2)/gameConfig.ZOOM
+    local wy = camera.y + (y - lg.getHeight()/2)/gameConfig.ZOOM
     player.setMoveTarget(wx, wy)
   end
 end
