@@ -1,7 +1,7 @@
 
 local ctx    = require("src.core.ctx")
 local util   = require("src.core.util")
-local bolt   = require("assets.weapons.bolt")
+local bolt   = require("src.content.weapons.bolt")
 
 local M = {}
 local respawnTimer = 0
@@ -98,6 +98,56 @@ function M.onHit(e, dmg)
   e.state = "aggro"
 end
 
+function M.makeAggressive(e)
+  -- Make an enemy aggressive (used when enemy successfully hits player)
+  e.state = "aggro"
+end
+
+function M.generateLootContents(bonus)
+  local contents = {}
+  
+  -- Always include some credits
+  contents.credits = math.floor((bonus.cr * (0.5 + love.math.random() * 0.5)) * 100) / 100  -- 50-100% of normal credits, rounded to 2 decimal places
+  
+  -- Always include rockets (guaranteed)
+  contents.rockets = {
+    type = "rockets",
+    name = "Rockets",
+    quantity = math.floor(10 + love.math.random() * 20),  -- 10-30 rockets
+    value = 5  -- credit value per rocket
+  }
+  
+  -- Chance for bonus items
+  if love.math.random() < 0.4 then  -- 40% chance for ammo
+    contents.ammo = {
+      type = "ammo",
+      name = "Energy Cells",
+      quantity = math.floor(5 + love.math.random() * 15),
+      value = 2
+    }
+  end
+  
+  if love.math.random() < 0.2 then  -- 20% chance for repair kit
+    contents.repairKit = {
+      type = "repair_kit",
+      name = "Nanite Repair Paste",
+      quantity = 1,
+      value = 50
+    }
+  end
+  
+  if love.math.random() < 0.15 then  -- 15% chance for rare item
+    contents.rareItem = {
+      type = "rare",
+      name = "Alien Technology Fragment",
+      quantity = 1,
+      value = 200
+    }
+  end
+  
+  return contents
+end
+
 function M.kill(index)
   local e = ctx.enemies[index]
   if not e then return end
@@ -105,7 +155,25 @@ function M.kill(index)
   for k=1, 10 do
     table.insert(ctx.particles, {x=e.x, y=e.y, vx=(love.math.random()*2-1)*80, vy=(love.math.random()*2-1)*80, life=0.4+love.math.random()*0.5})
   end
-  table.insert(ctx.loots, {x=e.x + (love.math.random()*2-1)*10, y=e.y + (love.math.random()*2-1)*10, radius=10, credits=e.bonus.cr, xp=e.bonus.xp, life=12, spin=(love.math.random()*2-1)*2})
+  
+  -- 30% chance to drop a loot box instead of regular loot
+  if love.math.random() < 0.3 then
+    -- Create loot box
+    local lootBox = {
+      x = e.x + (love.math.random()*2-1)*10,
+      y = e.y + (love.math.random()*2-1)*10,
+      radius = 12,
+      type = "loot_box",
+      life = 30,  -- Loot boxes last longer
+      spin = (love.math.random()*2-1)*2,
+      contents = M.generateLootContents(e.bonus)
+    }
+    table.insert(ctx.lootBoxes, lootBox)
+  else
+    -- Regular loot drop
+    table.insert(ctx.loots, {x=e.x + (love.math.random()*2-1)*10, y=e.y + (love.math.random()*2-1)*10, radius=10, credits=math.floor(e.bonus.cr * 100) / 100, xp=e.bonus.xp, life=12, spin=(love.math.random()*2-1)*2})
+  end
+  
   table.remove(ctx.enemies, index)
 end
 
@@ -114,13 +182,43 @@ local function spawn(dt)
   respawnTimer = respawnTimer - dt
   if respawnTimer <= 0 then
     respawnTimer = ctx.G.ENEMY_RESPAWN_TIME
-    local r = 900 + love.math.random()*600
-    local a = love.math.random()*math.pi*2
-    local ex = ctx.player.x + math.cos(a)*r
-    local ey = ctx.player.y + math.sin(a)*r
-    ex = util.clamp(ex, -ctx.G.WORLD_SIZE+100, ctx.G.WORLD_SIZE-100)
-    ey = util.clamp(ey, -ctx.G.WORLD_SIZE+100, ctx.G.WORLD_SIZE-100)
-    table.insert(ctx.enemies, M.new(ex,ey, ctx.player.level))
+
+    -- Try to find a valid spawn position with minimum distance from other enemies
+    local maxAttempts = 10
+    local validPosition = false
+    local ex, ey
+
+    for attempt = 1, maxAttempts do
+      local r = 900 + love.math.random()*600  -- Distance from player
+      local a = love.math.random()*math.pi*2   -- Random angle
+      ex = ctx.player.x + math.cos(a)*r
+      ey = ctx.player.y + math.sin(a)*r
+
+      -- Clamp to world boundaries
+      ex = util.clamp(ex, -ctx.G.WORLD_SIZE+100, ctx.G.WORLD_SIZE-100)
+      ey = util.clamp(ey, -ctx.G.WORLD_SIZE+100, ctx.G.WORLD_SIZE-100)
+
+      -- Check minimum distance from all existing enemies
+      validPosition = true
+      local minDistance = 200  -- Minimum 200 units between enemies
+
+      for _, existingEnemy in ipairs(ctx.enemies) do
+        local dx = ex - existingEnemy.x
+        local dy = ey - existingEnemy.y
+        local distance = util.len(dx, dy)
+        if distance < minDistance then
+          validPosition = false
+          break
+        end
+      end
+
+      if validPosition then break end
+    end
+
+    -- Only spawn if we found a valid position
+    if validPosition then
+      table.insert(ctx.enemies, M.new(ex, ey, ctx.player.level))
+    end
   end
 end
 
@@ -169,24 +267,62 @@ function M.draw()
 
     love.graphics.pop()
 
-    -- Health bar
+    -- Draw shield effect if shields are active
+    if e.shield > 0 then
+      local shieldRadius = e.radius + 8
+      local st = math.max(0, math.min(1, e.shield / e.maxShield))
+      local pulse = math.sin(ctx.state.t * 8) * 0.3 + 0.7
+      local alpha = 0.3 + 0.4 * st * pulse
+      
+      -- Outer shield ring
+      love.graphics.setColor(0.8, 0.2, 0.3, alpha)  -- Reddish for enemies
+      love.graphics.circle("line", e.x, e.y, shieldRadius)
+      
+      -- Inner shield glow
+      love.graphics.setColor(1.0, 0.4, 0.5, alpha * 0.5)
+      love.graphics.circle("fill", e.x, e.y, shieldRadius)
+      
+      -- Shield energy arcs
+      for i = 1, 6 do
+        local angle = (i / 6) * math.pi * 2 + ctx.state.t * 2
+        local arcX = e.x + math.cos(angle) * (shieldRadius - 2)
+        local arcY = e.y + math.sin(angle) * (shieldRadius - 2)
+        love.graphics.setColor(1.0, 0.6, 0.7, alpha * 0.8)
+        love.graphics.circle("fill", arcX, arcY, 2)
+      end
+    end
+
+    -- Shield and Health bars
     local barWidth = 24
     local barHeight = 4
     local barX = e.x - barWidth/2
     local barY = e.y - e.radius - 8
-    local healthPercent = math.max(0, math.min(1, e.hp/e.maxHP))
+    
+    -- Shield bar (above health bar)
+    if e.maxShield > 0 then
+      local shieldPercent = math.max(0, math.min(1, e.shield/e.maxShield))
+      -- Background bar for shield
+      love.graphics.setColor(0.2, 0.4, 0.8, 0.6)
+      love.graphics.rectangle("fill", barX, barY - barHeight - 1, barWidth, barHeight)
+      -- Shield bar (blue)
+      love.graphics.setColor(0.4, 0.8, 1, 0.8)
+      love.graphics.rectangle("fill", barX, barY - barHeight - 1, barWidth * shieldPercent, barHeight)
+      -- Shield border
+      love.graphics.setColor(0.6, 0.9, 1, 1)
+      love.graphics.rectangle("line", barX, barY - barHeight - 1, barWidth, barHeight)
+    end
 
-    -- Background bar
+    -- Health bar
+    local healthPercent = math.max(0, math.min(1, e.hp/e.maxHP))
+    -- Background bar for health
     love.graphics.setColor(0.3, 0.3, 0.3, 0.8)
     love.graphics.rectangle("fill", barX, barY, barWidth, barHeight)
-
     -- Health bar (green to red)
     local r = 1 - healthPercent
     local g = healthPercent
     love.graphics.setColor(r, g, 0, 1)
     love.graphics.rectangle("fill", barX, barY, barWidth * healthPercent, barHeight)
-
-    -- Border
+    -- Health border
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.rectangle("line", barX, barY, barWidth, barHeight)
 

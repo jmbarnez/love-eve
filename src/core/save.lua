@@ -49,6 +49,10 @@ local function deserializeLua(str)
         ctx.player[k] = v 
       end
     end
+    -- Always reset to spawn position at docking area
+    ctx.player.x = ctx.station.x + 150
+    ctx.player.y = ctx.station.y
+    ctx.player.docked = false
   end
   return true
 end
@@ -57,7 +61,7 @@ function M.save()
   local p = ctx.player
   local t = {
     player={
-      x=p.x,y=p.y,
+      -- Don't save position - always spawn at docking area
       hp=p.hp,maxHP=p.maxHP,shield=p.shield,maxShield=p.maxShield,
       energy=p.energy,maxEnergy=p.maxEnergy,
       accel=p.accel, maxSpeed=p.maxSpeed, damage=p.damage,

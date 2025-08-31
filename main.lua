@@ -13,17 +13,18 @@ local player   = require("src.entities.player")
 local enemies  = require("src.entities.enemy")
 local bullets  = require("src.entities.bullet")
 local loot     = require("src.entities.loot")
+local lootBox  = require("src.entities.loot_box")
 
-local hud      = require("src.render.hud")
 local world    = require("src.render.world")
 local dock     = require("src.ui.dock")
+local simpleUI = require("src.ui.simple_ui")
 
 function love.load()
   love.window.setTitle("DarkOrbit-like (Single Player, Refactored)")
-  love.window.setMode(1280, 720, {resizable=true, vsync=1})
+  love.window.setMode(0, 0, {fullscreen=true, resizable=true, vsync=1})
 
   ctx.G = settings.build()
-  ctx.state = { t = 0, paused=false, showHelp=true, autopilotFollowMouse=false, minimapExpanded=false, autosaveTimer=0 }
+  ctx.state = { t = 0, paused=false, showHelp=true, autopilotFollowMouse=false, autosaveTimer=0 }
   ctx.fonts = {
     small = love.graphics.newFont(12),
     normal = love.graphics.newFont(14),
@@ -35,6 +36,7 @@ function love.load()
   player.init()
   enemies.init()
   dock.init()
+  simpleUI.init()
 
   -- Attempt to load existing save
   save.load()
@@ -59,16 +61,22 @@ function love.update(dt)
     enemies.update(dt)
     bullets.update(dt)
     loot.update(dt)
+    lootBox.update(dt)
   end
+  
+  simpleUI.update(dt)
 end
 
 function love.draw()
   camera.push()
   world.draw()
+  lootBox.draw()  -- Draw loot boxes
   camera.pop()
 
-  hud.draw()
+  -- Minimal Sci-Fi HUD System
   if ctx.player.docked then dock.draw() end
+  
+  simpleUI.draw()
 
   if ctx.state.paused then
     local lg = love.graphics
@@ -80,8 +88,11 @@ function love.draw()
 end
 
 function love.keypressed(key)
+  -- Let UI handle input first
+  if simpleUI.keypressed(key) then return end
+  
   if key == "escape" then ctx.state.paused = not ctx.state.paused end
-  if key == "tab" then ctx.state.minimapExpanded = not ctx.state.minimapExpanded end
+  -- Tab now opens inventory (handled by UI)
   if key == "h" then ctx.state.showHelp = not ctx.state.showHelp end
   if key == "space" then ctx.player.vx, ctx.player.vy = ctx.player.vx*0.2, ctx.player.vy*0.2 end
   if key == "f" then ctx.state.autopilotFollowMouse = not ctx.state.autopilotFollowMouse end
@@ -94,6 +105,9 @@ function love.keypressed(key)
 end
 
 function love.mousepressed(x,y,btn)
+  -- Let UI handle mouse input first
+  if simpleUI.mousepressed(x, y, btn) then return end
+  
   if ctx.player.docked then
     if btn == 1 then dock.click(x, y) end
     return
@@ -114,7 +128,15 @@ function love.mousepressed(x,y,btn)
       end
     end
     ctx.player.target = target
+    -- Reset rocket timer for immediate first shot when targeting
+    if target then
+      ctx.player.lastRocketShot = 2.0  -- Set to fire interval to allow immediate shot
+    end
   end
+end
+
+function love.mousereleased(x, y, btn)
+  if simpleUI.mousereleased(x, y, btn) then return end
 end
 
 function love.quit()

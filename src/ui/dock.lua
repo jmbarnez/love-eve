@@ -42,7 +42,7 @@ function M.draw()
   love.graphics.setColor(0,0,0,0.6); love.graphics.rectangle("fill", 0,0, W,H)
   love.graphics.setColor(1,1,1,1)
   love.graphics.printf("Docked — Upgrade Bay", 0, 40, W, "center")
-  love.graphics.printf("Credits: "..ctx.player.credits, 0, 66, W, "center")
+  love.graphics.printf("Credits: "..string.format("%.2f", ctx.player.credits), 0, 66, W, "center")
 
   local bx, by = W*0.5 - 360, 120
   for i,btn in ipairs(M.buttons) do
