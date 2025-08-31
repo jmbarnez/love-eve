@@ -1,7 +1,7 @@
-local ctx = require("src.core.ctx")
+local ctx = require("src.core.state")
 local util = require("src.core.util")
-local projectiles = require("src.entities.projectile")
-local bolt = require("src.content.weapons.bolt")
+local projectiles = require("src.systems.projectiles")
+local bolt = require("src.models.projectiles.types.bolt")
 
 local M = {}
 local respawnTimer = 0
@@ -25,7 +25,7 @@ function M.new(px,py, level)
     shield=p.shield, maxShield=p.shield, shieldRegen=6, shieldCooldown=0, shieldCDMax=2.4,
     accel=200, maxSpeed=p.speed, friction=1.0,
     damage=p.damage, fireRate=p.fireRate,
-    spread=0.07, lastShot=0, range=p.range,
+    spread=0.01, lastShot=0, range=p.range,
     bonus=p.bonus,
     state="idle", -- becomes "aggro" only when attacked
   }
@@ -97,7 +97,7 @@ function M.makeAggressive(e)
 end
 
 function M.generateLootContents(bonus)
-  local items = require("src.content.items")
+  local items = require("src.models.items.registry")
   local tier = bonus.tier or 1  -- Enemy tier for scaling drops
   return items.generateRandomLoot(tier, bonus.cr)
 end
@@ -186,6 +186,10 @@ function M.update(dt)
 end
 
 function M.draw()
+  -- Get enemy under mouse for hover effect
+  local player = require("src.entities.player")
+  local hoveredEnemy = player.getEnemyUnderMouse()
+  
   for _,e in ipairs(ctx.enemies) do
     -- Alien enemy ship with organic, menacing design
     love.graphics.setColor(0.8, 0.1, 0.2, 1) -- alien red
@@ -215,16 +219,16 @@ function M.draw()
 
     love.graphics.pop()
 
-    -- Draw shield effect only when actively blocking damage
-    if e.shield > 0 and e.shieldCooldown > 0 then
-      local shieldRadius = e.radius + 8
-      
-      -- Simple blue circle shield
-      love.graphics.setColor(0.2, 0.4, 1.0, 0.6)
-      love.graphics.circle("line", e.x, e.y, shieldRadius)
+    -- Draw interaction circle when mouse is hovering over this enemy
+    if hoveredEnemy == e then
+      local interactionRadius = e.radius + 12
+      love.graphics.setColor(0.2, 1.0, 0.3, 0.8) -- bright green
+      love.graphics.circle("line", e.x, e.y, interactionRadius)
+      love.graphics.setColor(0.2, 1.0, 0.3, 0.3) -- semi-transparent green fill
+      love.graphics.circle("line", e.x, e.y, interactionRadius + 2)
     end
 
-    -- Shield and Health bars
+        -- Shield and Health bars
     local barWidth = 24
     local barHeight = 4
     local barX = e.x - barWidth/2

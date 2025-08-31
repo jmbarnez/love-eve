@@ -3,20 +3,20 @@
 -- No premium currencies. Single-player only.
 -- By ChatGPT (GPL-3.0-or-later)
 
-local ctx      = require("src.core.ctx")
+local ctx      = require("src.core.state")
 local settings = require("src.core.settings")
 local camera   = require("src.core.camera")
-local save     = require("src.core.save")
+local save     = require("src.core.persistence.save")
 local util     = require("src.core.util")
 
 local player   = require("src.entities.player")
 local enemies  = require("src.entities.enemy")
-local projectiles = require("src.entities.projectile")
+local projectiles = require("src.systems.projectiles")
 local loot     = require("src.entities.loot")
 local lootBox  = require("src.entities.loot_box")
 
 local world    = require("src.render.world")
-local dock     = require("src.ui.dock")
+local dock     = require("src.ui.dock_window")
 local simpleUI = require("src.ui.simple_ui")
 
 function love.load()

@@ -1,8 +1,8 @@
 
-local ctx     = require("src.core.ctx")
+local ctx     = require("src.core.state")
 local util    = require("src.core.util")
 local enemies = require("src.entities.enemy")
-local projectiles = require("src.entities.projectile")
+local projectiles = require("src.systems.projectiles")
 local loot    = require("src.entities.loot")
 local player  = require("src.entities.player")
 
@@ -184,11 +184,22 @@ function M.draw()
       love.graphics.arc("line", tx, ty, radius, 0, math.pi * 2)
     end
     
-    -- Movement trail line
-    love.graphics.setColor(0.4, 1, 0.9, 0.3)
-    love.graphics.line(ctx.player.x, ctx.player.y, tx, ty)
-    
-    love.graphics.setColor(1, 1, 1, 1)
+  end
+
+  -- target indicator
+  if ctx.player.autoAttackTarget and ctx.player.autoAttackTarget.hp > 0 then
+    local target = ctx.player.autoAttackTarget
+    local x, y = target.x, target.y
+    local r = target.radius + 10
+    local t = ctx.state.t
+
+    love.graphics.setColor(1, 0.2, 0.2, 0.9)
+    love.graphics.push()
+    love.graphics.translate(x, y)
+    love.graphics.rotate(t * 2)
+    love.graphics.line(-r, -r, r, r)
+    love.graphics.line(-r, r, r, -r)
+    love.graphics.pop()
   end
 end
 

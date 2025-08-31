@@ -1,7 +1,7 @@
 -- Loot Box Entity
 -- Handles loot boxes that require player interaction to open
 
-local ctx = require("src.core.ctx")
+local ctx = require("src.core.state")
 local util = require("src.core.util")
 
 local M = {}
@@ -56,7 +56,7 @@ function M.showNotification(text, color)
 end
 
 function M.openLootBox(box)
-  local items = require("src.content.items")
+  local items = require("src.models.items.registry")
   local player = require("src.entities.player")
   
   if box.contents.credits then
@@ -107,11 +107,7 @@ function M.draw()
       love.graphics.rectangle("line", -10, -10, 20, 20, 3)
     end
 
-    -- Interaction prompt (only if not already opened)
-    if box.canInteract and not ctx.containerOpen then
-      love.graphics.setColor(1, 1, 1, 1)
-      love.graphics.printf("Press E to open container", box.x - 50, box.y - 30, 100, "center")
-    end
+    
 
     love.graphics.pop()
   end

@@ -1,7 +1,7 @@
 -- Universal Projectile System
 -- Handles all projectile types: bullets, rockets, missiles, etc.
 
-local ctx   = require("src.core.ctx")
+local ctx   = require("src.core.state")
 local util  = require("src.core.util")
 
 local M = {}
@@ -58,21 +58,7 @@ local function checkShieldHit(projectile, target)
     target.shieldCooldown = target.shieldCDMax
     local damageToShield = math.min(target.shield, projectile.damage)
     target.shield = target.shield - damageToShield
-    
-    -- Create shield impact particles
-    for _ = 1, 3 do
-      local angle = math.atan2(projectile.y - target.y, projectile.x - target.x) + (love.math.random() * 2 - 1) * 0.5
-      local dist = shieldRadius + love.math.random() * 5
-      local px = target.x + math.cos(angle) * dist
-      local py = target.y + math.sin(angle) * dist
-      table.insert(ctx.particles, {
-        x = px, y = py,
-        vx = math.cos(angle) * 60,
-        vy = math.sin(angle) * 60,
-        life = 0.3
-      })
-    end
-    
+    target.shieldVisible = true
     return true
   end
   return false
@@ -94,17 +80,7 @@ local function hitEnemy(projectile, enemyIndex)
   local enemy = require("src.entities.enemy")
   enemy.onHit(e, projectile.damage)
   
-  -- Impact particles
-  for _ = 1, 3 do
-    table.insert(ctx.particles, {
-      x = projectile.x, y = projectile.y,
-      vx = util.randf(-40, 40),
-      vy = util.randf(-40, 40),
-      life = util.randf(0.2, 0.4)
-    })
-  end
-  
-  table.remove(ctx.projectiles, projectile._i)
+    table.remove(ctx.projectiles, projectile._i)
 end
 
 -- Hit player
@@ -122,14 +98,7 @@ local function hitPlayer(projectile)
     return
   end
   
-  -- Direct hit
-  p.shieldCooldown = p.shieldCDMax
-  local s = math.min(p.shield, projectile.damage)
-  p.shield = p.shield - s
-  local dmg = projectile.damage - s
-  if dmg > 0 then
-    p.hp = p.hp - dmg
-  end
+  p.hp = p.hp - projectile.damage
   
   -- Make enemy aggressive
   if projectile.owner and projectile.owner ~= ctx.player then
@@ -137,17 +106,7 @@ local function hitPlayer(projectile)
     enemy.makeAggressive(projectile.owner)
   end
   
-  -- Impact particles
-  for _ = 1, 3 do
-    table.insert(ctx.particles, {
-      x = projectile.x, y = projectile.y,
-      vx = util.randf(-40, 40),
-      vy = util.randf(-40, 40),
-      life = util.randf(0.2, 0.4)
-    })
-  end
-  
-  table.remove(ctx.projectiles, projectile._i)
+    table.remove(ctx.projectiles, projectile._i)
   
   -- Handle player death
   if p.hp <= 0 then
@@ -234,9 +193,16 @@ local function updateHoming(projectile, dt)
       projectile.vx = projectile.vx + (targetVx - projectile.vx) * homingStrength
       projectile.vy = projectile.vy + (targetVy - projectile.vy) * homingStrength
     else
-      -- Direct tracking for bolts
-      projectile.vx = targetVx
-      projectile.vy = targetVy
+      -- Direct tracking for bolts - more aggressive for enemy projectiles
+      if projectile.owner ~= ctx.player then
+        -- Enemy bolts get perfect tracking to ensure hits
+        projectile.vx = targetVx
+        projectile.vy = targetVy
+      else
+        -- Player bolts use normal tracking
+        projectile.vx = targetVx
+        projectile.vy = targetVy
+      end
     end
   end
   
@@ -250,7 +216,7 @@ function M.update(dt)
     p._i = i
     
     -- Update homing if applicable
-    if p.weapon.type == "rocket" or (p.target and p.weapon.type == TYPES.BOLT) then
+    if p.weapon.type == "rocket" or (p.target and p.weapon.type == "bolt") then
       updateHoming(p, dt)
     end
     

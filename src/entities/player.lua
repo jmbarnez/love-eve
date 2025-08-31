@@ -1,5 +1,5 @@
 
-local ctx    = require("src.core.ctx")
+local ctx    = require("src.core.state")
 local util   = require("src.core.util")
 local ship   = require("src.content.ships.starter")
 
@@ -145,8 +145,8 @@ function M.fireRocket(mouseX, mouseY)
   local dx, dy = wx - p.x, wy - p.y
   p.r = math.atan2(dy, dx)
   
-  local projectiles = require("src.entities.projectile")
-  local rocketLauncher = require("src.content.weapons.rocket_launcher")
+  local projectiles = require("src.systems.projectiles")
+  local rocketLauncher = require("src.models.projectiles.types.rocket_launcher")
   
   -- Fire rocket toward mouse cursor (no initial target - will lock on later)
   projectiles.createFromOwner(p, rocketLauncher, nil)
@@ -185,6 +185,28 @@ end
 
 function M.hasItem(itemType, quantity)
   return (ctx.player.inventory[itemType] or 0) >= quantity
+end
+
+function M.getEnemyUnderMouse()
+  local mx, my = love.mouse.getPosition()
+
+  -- Convert screen coordinates to world coordinates
+  local wx = ctx.camera.x + (mx - love.graphics.getWidth()/2) / ctx.G.ZOOM
+  local wy = ctx.camera.y + (my - love.graphics.getHeight()/2) / ctx.G.ZOOM
+
+  -- Check each enemy to see if mouse is over it
+  for _, enemy in ipairs(ctx.enemies) do
+    local dx = wx - enemy.x
+    local dy = wy - enemy.y
+    local distance = util.len(dx, dy)
+
+    -- Use a slightly larger radius for mouse interaction (same as the green circle)
+    if distance <= enemy.radius + 12 then
+      return enemy
+    end
+  end
+
+  return nil
 end
 
 local function drawShield()

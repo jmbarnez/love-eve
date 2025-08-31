@@ -6,7 +6,7 @@ local M = {}
 -- Weapon properties
 M.name = "Basic Bolt"
 M.description = "Standard energy bolt weapon"
-M.type = "projectile"
+M.type = "bolt"
 
 -- Visual properties
 M.color = {1, 1, 1, 1}  -- White

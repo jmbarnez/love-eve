@@ -24,7 +24,7 @@ M.items = {
     maxStack = 99,
     color = {0, 1, 0.5, 1}, -- Green
     effect = function(quantity)
-      local ctx = require("src.core.ctx")
+      local ctx = require("src.core.state")
       ctx.player.hp = math.min(ctx.player.maxHP, ctx.player.hp + 50 * quantity)
       ctx.player.shield = math.min(ctx.player.maxShield, ctx.player.shield + 30 * quantity)
       return "+" .. (50 * quantity) .. " HP +" .. (30 * quantity) .. " Shield"
@@ -99,7 +99,7 @@ M.items = {
     maxStack = 25,
     color = {0.2, 0.8, 1, 1}, -- Cyan
     effect = function(quantity)
-      local ctx = require("src.core.ctx")
+      local ctx = require("src.core.state")
       ctx.player.maxShield = ctx.player.maxShield + 20 * quantity
       ctx.player.shield = ctx.player.maxShield
       return "+" .. (20 * quantity) .. " Max Shield"
@@ -116,7 +116,7 @@ M.items = {
     maxStack = 50,
     color = {1, 1, 0.2, 1}, -- Yellow
     effect = function(quantity)
-      local ctx = require("src.core.ctx")
+      local ctx = require("src.core.state")
       ctx.player.energy = ctx.player.maxEnergy
       ctx.player.energyRegen = ctx.player.energyRegen + 2 * quantity
       return "Energy restored, +" .. (2 * quantity) .. " regen rate"
