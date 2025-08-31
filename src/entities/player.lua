@@ -9,17 +9,6 @@ function M.new()
   return {
     x=0,y=0, vx=0,vy=0, r=0,
     radius=14,
-<<<<<<< HEAD
-    accel=120,
-    maxSpeed=1000,
-    friction=1.0,
-    afterburner=240,
-    energy=100, maxEnergy=100, energyRegen=14,
-    hp=100, maxHP=100,
-    shield=120, maxShield=120, shieldRegen=10, shieldCooldown=0, shieldCDMax=2.0,
-    damage=16,
-    fireRate=8, -- shots/sec
-=======
     accel=80,
     maxSpeed=200,
     friction=1.0,
@@ -29,7 +18,6 @@ function M.new()
     damage=12,
     fireCooldown=0, -- seconds until next shot allowed
     fireCooldownMax=2.0, -- fixed cooldown for default attack
->>>>>>> a91d4cc (Fixed combat and movement)
     spread=0.06,
     lastShot=0,
     credits=0.00,
@@ -39,12 +27,8 @@ function M.new()
     xpToNext=100,
     docked=false,
     moveTarget=nil,
-<<<<<<< HEAD
-    lastRocketShot=0,
-=======
     attackTarget=nil, -- Auto attack target
     moveMarker={x=0, y=0, timer=0}, -- Temporary visual marker for right-click movement
->>>>>>> a91d4cc (Fixed combat and movement)
   }
 end
 
@@ -58,10 +42,6 @@ function M.init()
   ctx.player.r = math.pi  -- face left towards station
   
   -- Initialize inventory with starting items
-<<<<<<< HEAD
-  M.addToInventory("rockets", 500)
-=======
->>>>>>> a91d4cc (Fixed combat and movement)
   M.addToInventory("energy_cells", 200)
   M.addToInventory("repair_kit", 5)
   M.addToInventory("shield_booster", 2)
@@ -70,21 +50,11 @@ end
 
 local function applyMovement(dt)
   local p = ctx.player
-<<<<<<< HEAD
-  
-=======
-
->>>>>>> a91d4cc (Fixed combat and movement)
   -- Handle right-click movement
   if p.moveTarget then
     local dx = p.moveTarget.x - p.x
     local dy = p.moveTarget.y - p.y
     local dist = util.len(dx, dy)
-<<<<<<< HEAD
-    
-=======
-
->>>>>>> a91d4cc (Fixed combat and movement)
     if dist < 15 then
       -- Reached destination
       p.moveTarget = nil
@@ -95,20 +65,6 @@ local function applyMovement(dt)
       local ux, uy = dx / dist, dy / dist
       local desiredSpeed = math.min(p.maxSpeed, dist * 2)  -- Slow down as we approach
       local dvx, dvy = ux * desiredSpeed - p.vx, uy * desiredSpeed - p.vy
-<<<<<<< HEAD
-      
-      p.vx = p.vx + dvx * 5.0 * dt  -- Responsive movement
-      p.vy = p.vy + dvy * 5.0 * dt
-      
-      -- Only face movement direction when not recently firing
-      if p.lastRocketShot > 0.5 then  -- 0.5 second grace period after firing
-        p.r = math.atan2(dy, dx)
-      end
-      
-      -- Energy consumption
-      p.energy = math.max(0, p.energy - 15 * dt)
-=======
-
       p.vx = p.vx + dvx * 5.0 * dt  -- Responsive movement
       p.vy = p.vy + dvy * 5.0 * dt
 
@@ -119,21 +75,14 @@ local function applyMovement(dt)
 
       -- Energy consumption for movement (reduced from 12 to 6 per second)
       p.energy = math.max(0, p.energy - 6 * dt)
->>>>>>> a91d4cc (Fixed combat and movement)
     end
   else
     -- No target, regenerate energy faster
     p.energy = math.min(p.maxEnergy, p.energy + p.energyRegen * dt)
   end
-<<<<<<< HEAD
 end
 
 -- Function to set move target from right-click
-function M.setMoveTarget(x, y)
-  if not ctx.player.docked then
-    ctx.player.moveTarget = {x = x, y = y}
-=======
-end-- Function to set move target from right-click
 function M.setMoveTarget(x, y)
   if not ctx.player.docked then
     ctx.player.moveTarget = {x = x, y = y}
@@ -146,7 +95,6 @@ end
 function M.setAttackTarget(enemy)
   if not ctx.player.docked then
     ctx.player.attackTarget = enemy
->>>>>>> a91d4cc (Fixed combat and movement)
   end
 end
 
@@ -183,38 +131,6 @@ end
 
 local function shooting(dt)
   local p = ctx.player
-<<<<<<< HEAD
-  p.lastRocketShot = p.lastRocketShot + dt
-end
-
--- Function to fire rocket toward mouse position
-function M.fireRocket(mouseX, mouseY)
-  local p = ctx.player
-  if p.docked or not M.hasItem("rockets", 1) then return false end
-  
-  local rocketInterval = 1.0 / 2.0  -- Faster fire rate for active combat
-  if p.lastRocketShot < rocketInterval then return false end
-  
-  -- Calculate world position of mouse
-  local lg = love.graphics
-  local wx = ctx.camera.x + (mouseX - lg.getWidth()/2)/ctx.G.ZOOM
-  local wy = ctx.camera.y + (mouseY - lg.getHeight()/2)/ctx.G.ZOOM
-  
-  -- Face toward mouse for firing
-  local dx, dy = wx - p.x, wy - p.y
-  p.r = math.atan2(dy, dx)
-  
-  local projectiles = require("src.systems.projectiles")
-  local rocketLauncher = require("src.models.projectiles.types.rocket_launcher")
-  
-  -- Fire rocket toward mouse cursor (no initial target - will lock on later)
-  projectiles.createFromOwner(p, rocketLauncher, nil)
-  
-  M.removeFromInventory("rockets", 1)
-  p.lastRocketShot = 0
-  ctx.camera.shake = math.min(0.1, ctx.camera.shake + 0.05)
-  return true
-=======
   p.lastShot = math.min(p.lastShot + dt, 1.0)  -- Cap at 1 second to prevent overflow
   -- decrease explicit cooldown timer
   p.fireCooldown = math.max(0, (p.fireCooldown or 0) - dt)
@@ -247,11 +163,12 @@ function M.fireRocket(mouseX, mouseY)
     -- Clear dead target
     p.attackTarget = nil
   end
-end-- Function to fire rocket toward mouse position
+end
+
+-- Function to fire rocket toward mouse position
 function M.fireRocket(mouseX, mouseY)
   -- Rockets removed - now using auto attack with bullets
   return false
->>>>>>> a91d4cc (Fixed combat and movement)
 end
 
 function M.update(dt)
@@ -259,14 +176,11 @@ function M.update(dt)
   clampPhysics(dt)
   regen(dt)
   shooting(dt)
-<<<<<<< HEAD
-=======
   
   -- Update move marker timer
   if ctx.player.moveMarker.timer > 0 then
     ctx.player.moveMarker.timer = ctx.player.moveMarker.timer - dt
   end
->>>>>>> a91d4cc (Fixed combat and movement)
 end
 
 function M.addToInventory(itemType, quantity)
@@ -332,8 +246,6 @@ end
 function M.draw()
   ship.draw(ctx.player.x, ctx.player.y, ctx.player.r, 1.0, util.len(ctx.player.vx, ctx.player.vy)/ctx.player.maxSpeed)
   drawShield()
-<<<<<<< HEAD
-=======
   
   -- Draw attack target indicator
   if ctx.player.attackTarget and ctx.player.attackTarget.hp > 0 then
@@ -364,7 +276,6 @@ function M.draw()
     
     love.graphics.setColor(1, 1, 1, 1)
   end
->>>>>>> a91d4cc (Fixed combat and movement)
 end
 
 function M.regenDocked(dt)

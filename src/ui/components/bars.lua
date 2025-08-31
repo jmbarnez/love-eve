@@ -2,8 +2,6 @@ local theme = require("src.ui.theme")
 
 local M = {}
 
-<<<<<<< HEAD
-=======
 function M.sciFi(x, y, w, h, value, maxValue, color, label, showPercentage)
   local pct = math.max(0, math.min(1, (maxValue ~= 0 and value / maxValue) or 0))
 
@@ -86,7 +84,6 @@ function M.sciFi(x, y, w, h, value, maxValue, color, label, showPercentage)
   end
 end
 
->>>>>>> a91d4cc (Fixed combat and movement)
 function M.compact(x, y, w, h, value, maxValue, color)
   local pct = math.max(0, math.min(1, (maxValue ~= 0 and value / maxValue) or 0))
   love.graphics.setColor(theme.bg)

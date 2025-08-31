@@ -10,27 +10,6 @@ function M.draw()
   local W, H = love.graphics.getWidth(), love.graphics.getHeight()
   local p = ctx.player
 
-<<<<<<< HEAD
-  -- Status bars (top-left)
-  local x, y = 20, 20
-  local w, h = 180, 14
-  local spacing = 16
-  bars.compact(x, y, w, h, p.hp, p.maxHP, theme.warning)
-  bars.compact(x, y + spacing, w, h, p.shield, p.maxShield, theme.primary)
-  bars.compact(x, y + spacing * 2, w, h, p.energy, p.maxEnergy, theme.energy)
-
-  love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
-
-  -- Minimap (top-right)
-  local mapSize = 120
-  local mapX, mapY = W - mapSize - 20, 20
-  love.graphics.setColor(theme.bg)
-  love.graphics.rectangle("fill", mapX, mapY, mapSize, mapSize, 4)
-  love.graphics.setColor(theme.border)
-  love.graphics.rectangle("line", mapX, mapY, mapSize, mapSize, 4)
-
-  love.graphics.setColor(theme.border[1], theme.border[2], theme.border[3], 0.3)
-=======
   -- Enhanced sci-fi status bars (top-left)
   local x, y = 20, 20
   local w, h = 220, 20
@@ -70,7 +49,6 @@ function M.draw()
   -- Inner grid
   love.graphics.setColor(theme.border[1], theme.border[2], theme.border[3], 0.3)
   love.graphics.setLineWidth(1)
->>>>>>> a91d4cc (Fixed combat and movement)
   for i = 1, 3 do
     local gx = mapX + (mapSize / 4) * i
     local gy = mapY + (mapSize / 4) * i
@@ -85,23 +63,6 @@ function M.draw()
     return mapX + u * mapSize, mapY + v * mapSize
   end
 
-<<<<<<< HEAD
-  if ctx.station then
-    local sx, sy = toMini(ctx.station.x, ctx.station.y)
-    love.graphics.setColor(theme.energy)
-    love.graphics.circle("fill", sx, sy, 3)
-  end
-
-  love.graphics.setColor(theme.warning)
-  for _, e in ipairs(ctx.enemies or {}) do
-    local ex, ey = toMini(e.x, e.y)
-    love.graphics.rectangle("fill", ex - 1, ey - 1, 2, 2)
-  end
-
-  local px, py = toMini(p.x, p.y)
-  love.graphics.setColor(theme.primary)
-  love.graphics.circle("fill", px, py, 3)
-=======
   -- Station marker
   if ctx.station then
     local sx, sy = toMini(ctx.station.x, ctx.station.y)
@@ -133,7 +94,6 @@ function M.draw()
     love.graphics.setColor(theme.energy[1], theme.energy[2], theme.energy[3], 0.6)
     love.graphics.printf("LOW ENERGY", x, y + spacing * 3 + 5, w, "center")
   end
->>>>>>> a91d4cc (Fixed combat and movement)
 end
 
 return M

@@ -16,21 +16,11 @@ M.maxEnergy = 100
 
 -- Movement properties
 M.accel = 120
-<<<<<<< HEAD
-M.maxSpeed = 1000
-M.friction = 1.0
-M.afterburner = 240
-
--- Combat properties
-M.damage = 16
-M.fireRate = 8  -- shots per second
-=======
 M.maxSpeed = 300
 M.friction = 1.0
 
 -- Combat properties
 M.damage = 16
->>>>>>> a91d4cc (Fixed combat and movement)
 M.bulletSpeed = 560
 M.bulletLife = 1.2
 M.spread = 0.06

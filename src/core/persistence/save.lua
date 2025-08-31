@@ -58,26 +58,6 @@ local function deserializeLua(str)
 end
 
 function M.save()
-<<<<<<< HEAD
-  local p = ctx.player
-  local t = {
-    player={
-      -- Don't save position - always spawn at docking area
-      hp=p.hp,maxHP=p.maxHP,shield=p.shield,maxShield=p.maxShield,
-      energy=p.energy,maxEnergy=p.maxEnergy,
-      accel=p.accel, maxSpeed=p.maxSpeed, damage=p.damage,
-      fireRate=p.fireRate, bulletSpeed=p.bulletSpeed, bulletLife=p.bulletLife,
-      spread=p.spread, credits=p.credits, level=p.level, xp=p.xp, xpToNext=p.xpToNext,
-    }
-  }
-  local s = serialize(t)
-  lf.write("save.lua", s)
-end
-
-function M.load()
-  if not lf.getInfo("save.lua") then return false end
-  return deserializeLua()
-=======
   -- Player persistence disabled for testing
   -- local p = ctx.player
   -- local t = {
@@ -99,7 +79,6 @@ function M.load()
   -- if not lf.getInfo("save.lua") then return false end
   -- return deserializeLua()
   return false
->>>>>>> a91d4cc (Fixed combat and movement)
 end
 
 return M
