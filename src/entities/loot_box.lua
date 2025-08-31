@@ -23,8 +23,10 @@ function M.update(dt)
       box.canInteract = true
       if love.keyboard.isDown("e") and not box.interacted then
         box.interacted = true
-        M.openLootBox(box)
-        table.remove(ctx.lootBoxes, i)
+        -- Open container window instead of instant loot
+        ctx.currentContainer = box
+        ctx.containerOpen = true
+        -- Do not remove box yet; wait for window close
         goto continue
       end
     else
@@ -120,10 +122,10 @@ function M.draw()
       love.graphics.rectangle("fill", -12, -12, 24, 24, 3, 3)
     end
 
-    -- Interaction prompt
-    if box.canInteract then
+    -- Interaction prompt (only if not already opened)
+    if box.canInteract and not ctx.containerOpen then
       love.graphics.setColor(1, 1, 1, 1)
-      love.graphics.printf("Press E to loot", box.x - 50, box.y - 30, 100, "center")
+      love.graphics.printf("Press E to open container", box.x - 50, box.y - 30, 100, "center")
     end
 
     love.graphics.pop()

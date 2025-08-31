@@ -1,12 +1,19 @@
 -- Minimal Sci-Fi HUD System
 local ctx = require("src.core.ctx")
 local credit = require("src.content.credit")
+local loot_box = require("src.entities.loot_box")
 
 local SimpleUI = {}
 SimpleUI.inventoryOpen = false
 SimpleUI.inventoryX = nil  -- Will be set when opened
 SimpleUI.inventoryY = nil
 SimpleUI.dragState = nil   -- {offsetX, offsetY}
+
+-- Add container window variables
+SimpleUI.containerOpen = false
+SimpleUI.containerX = nil
+SimpleUI.containerY = nil
+SimpleUI.containerDragState = nil
 
 -- Minimal sci-fi theme
 local theme = {
@@ -29,7 +36,7 @@ end
 function SimpleUI.update(dt)
     if not SimpleUI.enabled then return end
     
-    -- Handle dragging
+    -- Handle dragging for inventory
     if SimpleUI.dragState then
         local mx, my = love.mouse.getPosition()
         SimpleUI.inventoryX = mx - SimpleUI.dragState.offsetX
@@ -40,6 +47,19 @@ function SimpleUI.update(dt)
         local invW, invH = 600, 400
         SimpleUI.inventoryX = math.max(0, math.min(SimpleUI.inventoryX, W - invW))
         SimpleUI.inventoryY = math.max(0, math.min(SimpleUI.inventoryY, H - invH))
+    end
+
+    -- Handle dragging for container
+    if SimpleUI.containerDragState then
+        local mx, my = love.mouse.getPosition()
+        SimpleUI.containerX = mx - SimpleUI.containerDragState.offsetX
+        SimpleUI.containerY = my - SimpleUI.containerDragState.offsetY
+        
+        -- Keep window on screen
+        local W, H = love.graphics.getWidth(), love.graphics.getHeight()
+        local contW, contH = 600, 400
+        SimpleUI.containerX = math.max(0, math.min(SimpleUI.containerX, W - contW))
+        SimpleUI.containerY = math.max(0, math.min(SimpleUI.containerY, H - contH))
     end
 end
 
@@ -98,15 +118,16 @@ local function drawTargetBar(x, y, w, h, value, maxValue, color, label)
     love.graphics.setColor(theme.border)
     love.graphics.rectangle("line", x, y, w, h, 2)
     
-    -- Label above bar
-    if label and label ~= "" then
-        love.graphics.setColor(theme.text)
-        love.graphics.printf(label, x, y - 14, w, "left")
-    end
+    -- Label above bar (removed)
+    -- if label and label ~= "" then
+    --     love.graphics.setColor(theme.text)
+    --     love.graphics.printf(label, x, y - 14, w, "left")
+    -- end
     
-    -- Values
+    -- Values (changed to centered percentage)
     love.graphics.setColor(1, 1, 1, 0.9)
-    love.graphics.printf(string.format("%.0f/%.0f", value, maxValue), x + 2, y + 1, w - 4, "left")
+    local text = string.format("%.0f%%", pct * 100)
+    love.graphics.printf(text, x, y + 1, w, "center")
 end
 
 function SimpleUI.draw()
@@ -127,16 +148,17 @@ function SimpleUI.draw()
     drawCompactBar(statusX, statusY, statusW, statusH, p.hp, p.maxHP, theme.warning)              -- Hull (red)
     drawCompactBar(statusX, statusY + spacing, statusW, statusH, p.shield, p.maxShield, theme.primary)  -- Shield (cyan)
     drawCompactBar(statusX, statusY + spacing * 2, statusW, statusH, p.energy, p.maxEnergy, theme.energy) -- Energy (green)
-    drawCompactBar(statusX, statusY + spacing * 3, statusW, 10, p.xp, p.xpToNext, theme.xp)      -- XP (gold, thinner)
+    -- Removed XP bar
+    -- drawCompactBar(statusX, statusY + spacing * 3, statusW, 10, p.xp, p.xpToNext, theme.xp)      -- XP (gold, thinner)
     
-    -- Level and credits (small, below status bars)
+    -- Level and credits (small, below status bars) (removed level and credits)
     love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
-    love.graphics.printf(string.format("LV%d", p.level), statusX, statusY + spacing * 4, 60, "left")
+    -- Removed level text
+    -- love.graphics.printf(string.format("LV%d", p.level), statusX, statusY + spacing * 4, 60, "left")
     
-    -- Draw credit icon
-    credit.draw(statusX + 70, statusY + spacing * 4 - 2, 12)
-    
-    love.graphics.printf(string.format("%.2f", p.credits), statusX + 70 + 16, statusY + spacing * 4, 120, "left")
+    -- Removed credit icon and value
+    -- credit.draw(statusX + 70, statusY + spacing * 4 - 2, 12)
+    -- love.graphics.printf(string.format("%.2f", p.credits), statusX + 70 + 16, statusY + spacing * 4, 120, "left")
     
     -- TARGET DISPLAY - TOP CENTER
     if p.target and p.target.hp > 0 then
@@ -341,6 +363,157 @@ function SimpleUI.draw()
         love.graphics.printf(string.format("%d items", SimpleUI.getTotalInventoryItems()), invX, invY + invH - 18, invW - 10, "right")
     end
     
+    -- CONTAINER WINDOW (similar to inventory)
+    if ctx.containerOpen and ctx.currentContainer then
+        local contW, contH = 600, 400
+        
+        -- Initialize position if not set (first time opening)
+        if not SimpleUI.containerX or not SimpleUI.containerY then
+            SimpleUI.containerX = (W - contW) / 2
+            SimpleUI.containerY = (H - contH) / 2
+        end
+        
+        local contX = SimpleUI.containerX
+        local contY = SimpleUI.containerY
+        
+        -- Main window background
+        love.graphics.setColor(0.02, 0.05, 0.08, 0.98)
+        love.graphics.rectangle("fill", contX, contY, contW, contH, 4)
+        
+        -- Window border
+        love.graphics.setColor(theme.border[1], theme.border[2], theme.border[3], 0.8)
+        love.graphics.setLineWidth(1)
+        love.graphics.rectangle("line", contX, contY, contW, contH, 4)
+        
+        -- Title bar
+        love.graphics.setColor(0.08, 0.15, 0.22, 1)
+        love.graphics.rectangle("fill", contX, contY, contW, 30, 4)
+        love.graphics.setColor(theme.border[1], theme.border[2], theme.border[3], 0.6)
+        love.graphics.line(contX, contY + 30, contX + contW, contY + 30)
+        
+        -- Title text
+        love.graphics.setColor(theme.text)
+        love.graphics.printf("CONTAINER", contX + 10, contY + 8, contW - 20, "left")
+        
+        -- Close button (X)
+        love.graphics.setColor(theme.warning[1], theme.warning[2], theme.warning[3], 0.8)
+        love.graphics.rectangle("fill", contX + contW - 25, contY + 5, 20, 20, 2)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf("×", contX + contW - 25, contY + 5, 20, "center")
+        
+        -- MAIN CONTAINER AREA (Full width, no sidebar)
+        local mainX = contX + 1
+        local mainY = contY + 30
+        local mainW = contW - 1
+        local mainH = contH - 30
+        
+        -- Display container items in grid
+        local gridStartY = mainY
+        local containerContents = ctx.currentContainer.contents or {}
+        
+        -- Grid settings
+        local itemSize = 64
+        local itemSpacing = 8
+        local itemsPerRow = math.floor((mainW - 20) / (itemSize + itemSpacing))
+        local mx, my = love.mouse.getPosition()
+        
+        -- Collect items with quantities > 0
+        local items = {}
+        for itemType, data in pairs(containerContents) do
+            local quantity, name
+            if type(data) == "table" then
+                quantity = data.quantity
+                name = data.name or itemType
+            elseif type(data) == "number" then
+                quantity = data
+                name = itemType  -- e.g., "credits"
+            end
+            if quantity and quantity > 0 then
+                table.insert(items, {type = itemType, quantity = quantity, name = name})
+            end
+        end
+        
+        -- Display items in grid
+        for i, item in ipairs(items) do
+            local row = math.floor((i - 1) / itemsPerRow)
+            local col = (i - 1) % itemsPerRow
+            local itemX = mainX + 10 + col * (itemSize + itemSpacing)
+            local itemY = gridStartY + row * (itemSize + itemSpacing + 20)
+            
+            -- Check if mouse is hovering over this item
+            local isHovered = mx >= itemX and mx <= itemX + itemSize and 
+                            my >= itemY and my <= itemY + itemSize and
+                            ctx.containerOpen
+            
+            -- Item slot background
+            if isHovered then
+                love.graphics.setColor(theme.primary[1], theme.primary[2], theme.primary[3], 0.3)
+            else
+                love.graphics.setColor(0.06, 0.12, 0.18, 0.8)
+            end
+            love.graphics.rectangle("fill", itemX, itemY, itemSize, itemSize, 4)
+            
+            -- Item slot border
+            if isHovered then
+                love.graphics.setColor(theme.primary[1], theme.primary[2], theme.primary[3], 0.8)
+            else
+                love.graphics.setColor(theme.border[1], theme.border[2], theme.border[3], 0.6)
+            end
+            love.graphics.setLineWidth(1)
+            love.graphics.rectangle("line", itemX, itemY, itemSize, itemSize, 4)
+            
+            -- Draw item icon
+            SimpleUI.drawItemIcon(item.type, itemX + itemSize/2, itemY + itemSize/2, itemSize * 0.6)
+            
+            -- Item quantity in bottom right
+            love.graphics.setColor(1, 1, 1, 0.9)
+            local qtyText = tostring(item.quantity)
+            local qtyFont = love.graphics.getFont()
+            local qtyW = qtyFont:getWidth(qtyText)
+            local qtyH = qtyFont:getHeight()
+            love.graphics.printf(qtyText, itemX + itemSize - qtyW - 4, itemY + itemSize - qtyH - 2, qtyW, "left")
+            
+            -- Item name below icon
+            love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
+            love.graphics.printf(item.name, itemX, itemY + itemSize + 2, itemSize, "center")
+            
+            -- Tooltip on hover
+            if isHovered then
+                SimpleUI.drawTooltip(item.type, item.quantity, mx + 15, my - 10)
+            end
+        end
+        
+        -- If no items, show empty message
+        if #items == 0 then
+            local emptyY = gridStartY + 100
+            love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.4)
+            love.graphics.printf("Container is empty", mainX, emptyY, mainW, "center")
+        end
+        
+        -- Take All button
+        if #items > 0 then
+            local buttonW = 100
+            local buttonH = 30
+            local buttonX = mainX + 10
+            local buttonY = mainY + mainH - buttonH - 30
+            love.graphics.setColor(0.1, 0.3, 0.5, 0.8)
+            love.graphics.rectangle("fill", buttonX, buttonY, buttonW, buttonH, 4)
+            love.graphics.setColor(theme.border)
+            love.graphics.rectangle("line", buttonX, buttonY, buttonW, buttonH, 4)
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.printf("Take All", buttonX, buttonY + 5, buttonW, "center")
+        end
+        
+        -- Status bar at bottom
+        love.graphics.setColor(0.04, 0.08, 0.12, 1)
+        love.graphics.rectangle("fill", contX, contY + contH - 25, contW, 25)
+        love.graphics.setColor(theme.border[1], theme.border[2], theme.border[3], 0.4)
+        love.graphics.line(contX, contY + contH - 25, contX + contW, contY + contH - 25)
+        
+        love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
+        love.graphics.printf(string.format("%d items", #items), contX, contY + contH - 18, contW - 10, "right")
+    end
+    
     love.graphics.setColor(1, 1, 1, 1) -- Reset color
     love.graphics.pop()
 end
@@ -440,31 +613,137 @@ function SimpleUI.drawTooltip(itemType, quantity, x, y)
 end
 
 function SimpleUI.mousepressed(x, y, button)
-    if button ~= 1 or not SimpleUI.inventoryOpen then return false end
+    if button ~= 1 then return false end
     
-    local invW, invH = 600, 400
-    local invX = SimpleUI.inventoryX or 0
-    local invY = SimpleUI.inventoryY or 0
-    
-    -- Check if clicking on title bar (draggable area)
-    if x >= invX and x <= invX + invW and y >= invY and y <= invY + 30 then
-        -- Check if clicking close button
-        if x >= invX + invW - 25 and x <= invX + invW - 5 and y >= invY + 5 and y <= invY + 25 then
-            SimpleUI.inventoryOpen = false
+    -- Handle inventory window
+    if SimpleUI.inventoryOpen then
+        local invW, invH = 600, 400
+        local invX = SimpleUI.inventoryX or 0
+        local invY = SimpleUI.inventoryY or 0
+        
+        -- Check if clicking on title bar (draggable area)
+        if x >= invX and x <= invX + invW and y >= invY and y <= invY + 30 then
+            -- Check if clicking close button
+            if x >= invX + invW - 25 and x <= invX + invW - 5 and y >= invY + 5 and y <= invY + 25 then
+                SimpleUI.inventoryOpen = false
+                return true
+            end
+            
+            -- Start dragging
+            SimpleUI.dragState = {
+                offsetX = x - invX,
+                offsetY = y - invY
+            }
             return true
         end
         
-        -- Start dragging
-        SimpleUI.dragState = {
-            offsetX = x - invX,
-            offsetY = y - invY
-        }
-        return true
+        -- Check if clicking inside window (to prevent clicking through)
+        if x >= invX and x <= invX + invW and y >= invY and y <= invY + invH then
+            return true -- Consume click to prevent world interaction
+        end
     end
     
-    -- Check if clicking inside window (to prevent clicking through)
-    if x >= invX and x <= invX + invW and y >= invY and y <= invY + invH then
-        return true -- Consume click to prevent world interaction
+    -- Handle container window
+    if ctx.containerOpen then
+        local contW, contH = 600, 400
+        local contX = SimpleUI.containerX or 0
+        local contY = SimpleUI.containerY or 0
+        
+        -- Check if clicking on title bar (draggable area)
+        if x >= contX and x <= contX + contW and y >= contY and y <= contY + 30 then
+            -- Check if clicking close button
+            if x >= contX + contW - 25 and x <= contX + contW - 5 and y >= contY + 5 and y <= contY + 25 then
+                ctx.containerOpen = false
+                ctx.currentContainer = nil
+                -- Remove the container from lootBoxes
+                for i, box in ipairs(ctx.lootBoxes) do
+                    if box == ctx.currentContainer then
+                        table.remove(ctx.lootBoxes, i)
+                        break
+                    end
+                end
+                return true
+            end
+            
+            -- Start dragging
+            SimpleUI.containerDragState = {
+                offsetX = x - contX,
+                offsetY = y - contY
+            }
+            return true
+        end
+        
+        -- Check if clicking on an item to take it
+        local containerContents = ctx.currentContainer.contents or {}
+        local itemSize = 64
+        local itemSpacing = 8
+        local itemsPerRow = math.floor((contW - 20) / (itemSize + itemSpacing))
+        local mainX = contX + 1
+        local mainY = contY + 30
+        local mainH = contH - 30
+        local gridStartY = mainY
+        
+        local items = {}
+        for itemType, data in pairs(containerContents) do
+            local quantity, name
+            if type(data) == "table" then
+                quantity = data.quantity
+                name = data.name or itemType
+            elseif type(data) == "number" then
+                quantity = data
+                name = "Credits"
+            end
+            if quantity and quantity > 0 then
+                table.insert(items, {type = itemType, quantity = quantity, name = name})
+            end
+        end
+        
+        for i, item in ipairs(items) do
+            local row = math.floor((i - 1) / itemsPerRow)
+            local col = (i - 1) % itemsPerRow
+            local itemX = mainX + 10 + col * (itemSize + itemSpacing)
+            local itemY = gridStartY + row * (itemSize + itemSpacing + 20)
+            
+            if x >= itemX and x <= itemX + itemSize and y >= itemY and y <= itemY + itemSize then
+                -- Take the item
+                if item.type == "credits" then
+                    ctx.player.credits = ctx.player.credits + item.quantity
+                else
+                    local player = require("src.entities.player")
+                    player.addToInventory(item.type, item.quantity)
+                end
+                containerContents[item.type] = nil  -- Remove from container
+                loot_box.showNotification("+" .. item.quantity .. " " .. item.name, {0, 1, 0, 1})
+                return true
+            end
+        end
+        
+        -- Check take all button
+        if #items > 0 then
+            local buttonW = 100
+            local buttonH = 30
+            local buttonX = mainX + 10
+            local buttonY = mainY + mainH - buttonH - 30
+            if x >= buttonX and x <= buttonX + buttonW and y >= buttonY and y <= buttonY + buttonH then
+                -- Take all items
+                for _, item in ipairs(items) do
+                    if item.type == "credits" then
+                        ctx.player.credits = ctx.player.credits + item.quantity
+                    else
+                        local player = require("src.entities.player")
+                        player.addToInventory(item.type, item.quantity)
+                    end
+                    containerContents[item.type] = nil
+                end
+                loot_box.showNotification("Took all items", {0, 1, 0, 1})
+                return true
+            end
+        end
+        
+        -- Check if clicking inside window (to prevent clicking through)
+        if x >= contX and x <= contX + contW and y >= contY and y <= contY + contH then
+            return true -- Consume click to prevent world interaction
+        end
     end
     
     return false

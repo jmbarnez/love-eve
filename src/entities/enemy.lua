@@ -1,4 +1,3 @@
-
 local ctx    = require("src.core.ctx")
 local util   = require("src.core.util")
 local bolt   = require("src.content.weapons.bolt")
@@ -60,7 +59,7 @@ local function fire(owner)
   local by = owner.y + math.sin(angle)*(owner.radius+8)
   local bvx = math.cos(angle)*spd + (owner.vx or 0)*0.3
   local bvy = math.sin(angle)*spd + (owner.vy or 0)*0.3
-  table.insert(ctx.bullets, {x=bx,y=by,vx=bvx,vy=bvy, life=owner.bulletLife, dmg=owner.damage, owner=owner, radius=3, weapon=bolt})
+  table.insert(ctx.bullets, {x=bx,y=by,vx=bvx,vy=bvy, life=owner.bulletLife, dmg=owner.damage, owner=owner, radius=3, weapon=bolt, target=ctx.player})
 end
 
 local function aggroChaseAndShoot(e, dt)
@@ -156,23 +155,17 @@ function M.kill(index)
     table.insert(ctx.particles, {x=e.x, y=e.y, vx=(love.math.random()*2-1)*80, vy=(love.math.random()*2-1)*80, life=0.4+love.math.random()*0.5})
   end
   
-  -- 30% chance to drop a loot box instead of regular loot
-  if love.math.random() < 0.3 then
-    -- Create loot box
-    local lootBox = {
-      x = e.x + (love.math.random()*2-1)*10,
-      y = e.y + (love.math.random()*2-1)*10,
-      radius = 12,
-      type = "loot_box",
-      life = 30,  -- Loot boxes last longer
-      spin = (love.math.random()*2-1)*2,
-      contents = M.generateLootContents(e.bonus)
-    }
-    table.insert(ctx.lootBoxes, lootBox)
-  else
-    -- Regular loot drop
-    table.insert(ctx.loots, {x=e.x + (love.math.random()*2-1)*10, y=e.y + (love.math.random()*2-1)*10, radius=10, credits=math.floor(e.bonus.cr * 100) / 100, xp=e.bonus.xp, life=12, spin=(love.math.random()*2-1)*2})
-  end
+  -- Always drop a loot box (container)
+  local lootBox = {
+    x = e.x + (love.math.random()*2-1)*10,
+    y = e.y + (love.math.random()*2-1)*10,
+    radius = 12,
+    type = "loot_box",
+    life = 30,  -- Loot boxes last longer
+    spin = (love.math.random()*2-1)*2,
+    contents = M.generateLootContents(e.bonus)
+  }
+  table.insert(ctx.lootBoxes, lootBox)
   
   table.remove(ctx.enemies, index)
 end

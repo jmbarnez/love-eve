@@ -1,4 +1,3 @@
-
 local ctx   = require("src.core.ctx")
 local util  = require("src.core.util")
 local enemy = require("src.entities.enemy")
@@ -141,6 +140,22 @@ function M.update(dt)
       end
     elseif b.weapon == rocket and (not b.target or b.target.hp <= 0) then
       -- Remove rocket if target is dead
+      table.remove(ctx.bullets, i)
+      goto continue
+    end
+
+    -- Homing for enemy bolts
+    if b.weapon == bolt and b.target and b.target.hp > 0 then
+      local dx = b.target.x - b.x
+      local dy = b.target.y - b.y
+      local dist = util.len(dx, dy)
+      if dist > 0 then
+        local spd = b.owner.bulletSpeed  -- Use owner's bullet speed
+        b.vx = (dx / dist) * spd
+        b.vy = (dy / dist) * spd
+      end
+    elseif b.weapon == bolt and (not b.target or b.target.hp <= 0) then
+      -- Remove bolt if target is dead
       table.remove(ctx.bullets, i)
       goto continue
     end
