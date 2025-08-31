@@ -59,6 +59,11 @@ function Panel.draw()
 
   local items = collectItems(ctx.currentContainer.contents)
 
+<<<<<<< HEAD
+=======
+  local hoveredItems = {}  -- Store hovered items to draw tooltips last
+
+>>>>>>> a91d4cc (Fixed combat and movement)
   for i, item in ipairs(items) do
     local row = math.floor((i - 1) / perRow)
     local col = (i - 1) % perRow
@@ -86,7 +91,18 @@ function Panel.draw()
 
     love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
     love.graphics.printf(item.name, ix, iy + itemSize + 2, itemSize, "center")
+<<<<<<< HEAD
     if hovered then tooltip.draw(item.type, item.quantity, mx + 15, my - 10) end
+=======
+    if hovered then
+      table.insert(hoveredItems, {type = item.type, quantity = item.quantity, x = mx + 15, y = my - 10})
+    end
+  end
+
+  -- Draw tooltips on top of all items
+  for _, hoverData in ipairs(hoveredItems) do
+    tooltip.draw(hoverData.type, hoverData.quantity, hoverData.x, hoverData.y)
+>>>>>>> a91d4cc (Fixed combat and movement)
   end
 
   if #items > 0 then

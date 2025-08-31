@@ -14,7 +14,11 @@ function M.init()
     ctx.player.damage = math.floor(ctx.player.damage * 1.10 + 0.5)
   end)
   add("+10% Fire Rate", 140, "Blaster fires faster", function()
+<<<<<<< HEAD
     ctx.player.fireRate = ctx.player.fireRate * 1.10
+=======
+    ctx.player.fireCooldownMax = ctx.player.fireCooldownMax * 0.9
+>>>>>>> a91d4cc (Fixed combat and movement)
   end)
   add("+15% Shields", 180, "More max shields", function()
     ctx.player.maxShield = math.floor(ctx.player.maxShield * 1.15 + 0.5); ctx.player.shield = ctx.player.maxShield
@@ -31,8 +35,13 @@ function M.init()
   add("Shield Regen +20%", 110, "Faster shield recharge", function()
     ctx.player.shieldRegen = ctx.player.shieldRegen * 1.2
   end)
+<<<<<<< HEAD
   add("Afterburner +15%", 170, "Stronger boost", function()
     ctx.player.afterburner = ctx.player.afterburner * 1.15
+=======
+  add("Energy Regen +25%", 130, "Faster energy recharge", function()
+    ctx.player.energyRegen = ctx.player.energyRegen * 1.25
+>>>>>>> a91d4cc (Fixed combat and movement)
   end)
 end
 

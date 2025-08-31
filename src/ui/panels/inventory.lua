@@ -62,6 +62,11 @@ function Panel.draw()
     if q > 0 then table.insert(list, {type = t, quantity = q}) end
   end
 
+<<<<<<< HEAD
+=======
+  local hoveredItems = {}  -- Store hovered items to draw tooltips last
+
+>>>>>>> a91d4cc (Fixed combat and movement)
   for i, item in ipairs(list) do
     local row = math.floor((i - 1) / perRow)
     local col = (i - 1) % perRow
@@ -91,10 +96,22 @@ function Panel.draw()
     love.graphics.printf(getItemDisplayName(item.type), ix, iy + itemSize + 2, itemSize, "center")
 
     if hovered then
+<<<<<<< HEAD
       tooltip.draw(item.type, item.quantity, mx + 15, my - 10)
     end
   end
 
+=======
+      table.insert(hoveredItems, {type = item.type, quantity = item.quantity, x = mx + 15, y = my - 10})
+    end
+  end
+
+  -- Draw tooltips on top of all items
+  for _, hoverData in ipairs(hoveredItems) do
+    tooltip.draw(hoverData.type, hoverData.quantity, hoverData.x, hoverData.y)
+  end
+
+>>>>>>> a91d4cc (Fixed combat and movement)
   if #list == 0 then
     love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.4)
     love.graphics.printf("Cargo hold is empty", mainX, mainY + 100, mainW, "center")

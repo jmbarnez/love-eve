@@ -56,7 +56,14 @@ local function checkShieldHit(projectile, target)
   
   if target.shield > 0 and distToCenter <= shieldRadius then
     target.shieldCooldown = target.shieldCDMax
+<<<<<<< HEAD
     local damageToShield = math.min(target.shield, projectile.damage)
+=======
+    
+    -- Bullets do less damage to shields
+    local damageMultiplier = projectile.weapon.type == "bullet" and 0.5 or 1.0
+    local damageToShield = math.min(target.shield, projectile.damage * damageMultiplier)
+>>>>>>> a91d4cc (Fixed combat and movement)
     target.shield = target.shield - damageToShield
     target.shieldVisible = true
     return true
@@ -193,6 +200,7 @@ local function updateHoming(projectile, dt)
       projectile.vx = projectile.vx + (targetVx - projectile.vx) * homingStrength
       projectile.vy = projectile.vy + (targetVy - projectile.vy) * homingStrength
     else
+<<<<<<< HEAD
       -- Direct tracking for bolts - more aggressive for enemy projectiles
       if projectile.owner ~= ctx.player then
         -- Enemy bolts get perfect tracking to ensure hits
@@ -200,6 +208,15 @@ local function updateHoming(projectile, dt)
         projectile.vy = targetVy
       else
         -- Player bolts use normal tracking
+=======
+      -- Direct tracking for bolts and bullets
+      if projectile.owner ~= ctx.player then
+        -- Enemy projectiles get perfect tracking to ensure hits
+        projectile.vx = targetVx
+        projectile.vy = targetVy
+      else
+        -- Player projectiles use normal tracking
+>>>>>>> a91d4cc (Fixed combat and movement)
         projectile.vx = targetVx
         projectile.vy = targetVy
       end
@@ -216,7 +233,11 @@ function M.update(dt)
     p._i = i
     
     -- Update homing if applicable
+<<<<<<< HEAD
     if p.weapon.type == "rocket" or (p.target and p.weapon.type == "bolt") then
+=======
+    if p.weapon.type == "rocket" or (p.target and (p.weapon.type == "bolt" or p.weapon.type == "bullet")) then
+>>>>>>> a91d4cc (Fixed combat and movement)
       updateHoming(p, dt)
     end
     

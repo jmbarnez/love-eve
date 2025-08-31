@@ -1,7 +1,10 @@
 local ctx = require("src.core.state")
 local util = require("src.core.util")
 local projectiles = require("src.systems.projectiles")
+<<<<<<< HEAD
 local bolt = require("src.models.projectiles.types.bolt")
+=======
+>>>>>>> a91d4cc (Fixed combat and movement)
 
 local M = {}
 local respawnTimer = 0
@@ -9,10 +12,17 @@ local respawnTimer = 0
 local function preset(level)
   local tier = math.min(1+math.floor((level-1)/3), 4)
   local presets = {
+<<<<<<< HEAD
     [1] = {hp=40, shield=30, speed=300, damage=10, fireRate=0.9, range=520, bonus= {xp=20, cr=30, tier=1}},
     [2] = {hp=70, shield=60, speed=350, damage=12, fireRate=1.2, range=640, bonus= {xp=30, cr=45, tier=2}},
     [3] = {hp=110, shield=90, speed=400, damage=16, fireRate=1.6, range=700, bonus= {xp=40, cr=65, tier=3}},
     [4] = {hp=160, shield=140, speed=450, damage=20, fireRate=2.0, range=760, bonus= {xp=55, cr=90, tier=4}},
+=======
+    [1] = {hp=40, shield=0, speed=300, damage=10, fireCooldownMax=1.11, range=520, bonus= {xp=20, cr=30, tier=1}},
+    [2] = {hp=70, shield=0, speed=350, damage=12, fireCooldownMax=0.83, range=640, bonus= {xp=30, cr=45, tier=2}},
+    [3] = {hp=110, shield=0, speed=400, damage=16, fireCooldownMax=0.625, range=700, bonus= {xp=40, cr=65, tier=3}},
+    [4] = {hp=160, shield=0, speed=450, damage=20, fireCooldownMax=0.5, range=760, bonus= {xp=55, cr=90, tier=4}},
+>>>>>>> a91d4cc (Fixed combat and movement)
   }
   return presets[tier]
 end
@@ -24,7 +34,11 @@ function M.new(px,py, level)
     hp=p.hp, maxHP=p.hp,
     shield=p.shield, maxShield=p.shield, shieldRegen=6, shieldCooldown=0, shieldCDMax=2.4,
     accel=200, maxSpeed=p.speed, friction=1.0,
+<<<<<<< HEAD
     damage=p.damage, fireRate=p.fireRate,
+=======
+    damage=p.damage, fireCooldown=0, fireCooldownMax=p.fireCooldownMax,
+>>>>>>> a91d4cc (Fixed combat and movement)
     spread=0.01, lastShot=0, range=p.range,
     bonus=p.bonus,
     state="idle", -- becomes "aggro" only when attacked
@@ -53,7 +67,12 @@ end
 
 -- Fire projectile at player
 local function fire(owner)
+<<<<<<< HEAD
   projectiles.createFromOwner(owner, bolt, ctx.player)
+=======
+  local bullet = require("src.models.projectiles.types.bullet")
+  projectiles.createFromOwner(owner, bullet, ctx.player)
+>>>>>>> a91d4cc (Fixed combat and movement)
 end
 
 local function aggroChaseAndShoot(e, dt)
@@ -69,14 +88,24 @@ local function aggroChaseAndShoot(e, dt)
   e.r = math.atan2(dy, dx)
 
   -- Only shoot after being attacked (state == "aggro")
+<<<<<<< HEAD
   e.lastShot = e.lastShot + dt
   if dist < e.range and e.lastShot >= 1.0 / e.fireRate then
     fire(e)
     e.lastShot = 0
+=======
+  e.lastShot = math.min(e.lastShot + dt, 1.0)  -- Cap at 1 second to prevent overflow
+  e.fireCooldown = math.max(0, e.fireCooldown - dt)
+  if dist < e.range and e.fireCooldown <= 0 then
+    fire(e)
+    e.lastShot = 0
+    e.fireCooldown = e.fireCooldownMax
+>>>>>>> a91d4cc (Fixed combat and movement)
   end
 end
 
 local function regen(e, dt)
+<<<<<<< HEAD
   if e.shieldCooldown>0 then e.shieldCooldown = e.shieldCooldown - dt end
   if e.shieldCooldown<=0 then e.shield = math.min(e.maxShield, e.shield + e.shieldRegen*dt) end
 end
@@ -87,6 +116,14 @@ function M.onHit(e, dmg)
   e.shield = e.shield - s
   dmg = dmg - s
   if dmg > 0 then e.hp = e.hp - dmg end
+=======
+  -- Removed - enemies don't have shields
+end
+
+function M.onHit(e, dmg)
+  -- No shields, direct damage to HP
+  e.hp = e.hp - dmg
+>>>>>>> a91d4cc (Fixed combat and movement)
   -- Become aggressive *only when hit*
   e.state = "aggro"
 end
@@ -179,7 +216,11 @@ function M.update(dt)
     else
       aggroChaseAndShoot(e, dt)
     end
+<<<<<<< HEAD
     regen(e, dt)
+=======
+    -- No shield regen needed
+>>>>>>> a91d4cc (Fixed combat and movement)
     keepInWorld(e)
     if e.hp <= 0 then M.kill(i) end
   end
@@ -228,12 +269,17 @@ function M.draw()
       love.graphics.circle("line", e.x, e.y, interactionRadius + 2)
     end
 
+<<<<<<< HEAD
         -- Shield and Health bars
+=======
+    -- Health bar only (no shields)
+>>>>>>> a91d4cc (Fixed combat and movement)
     local barWidth = 24
     local barHeight = 4
     local barX = e.x - barWidth/2
     local barY = e.y - e.radius - 8
     
+<<<<<<< HEAD
     -- Shield bar (above health bar)
     if e.maxShield > 0 then
       local shieldPercent = math.max(0, math.min(1, e.shield/e.maxShield))
@@ -248,6 +294,8 @@ function M.draw()
       love.graphics.rectangle("line", barX, barY - barHeight - 1, barWidth, barHeight)
     end
 
+=======
+>>>>>>> a91d4cc (Fixed combat and movement)
     -- Health bar
     local healthPercent = math.max(0, math.min(1, e.hp/e.maxHP))
     -- Background bar for health

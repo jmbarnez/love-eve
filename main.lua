@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 
+=======
+>>>>>>> a91d4cc (Fixed combat and movement)
 -- DarkOrbit-style Single Player (Refactored) — LÖVE 11.x
 -- No premium currencies. Single-player only.
 -- By ChatGPT (GPL-3.0-or-later)
@@ -41,11 +44,21 @@ function love.load()
 
   -- Attempt to load existing save
   save.load()
+<<<<<<< HEAD
+=======
+
+  -- ctx.state.fireTimer = 0  -- Removed: Using player's fireCooldown system instead
+  -- ctx.G.TIME_SCALE = 0.5   -- Removed: No time scaling needed
+>>>>>>> a91d4cc (Fixed combat and movement)
 end
 
 function love.update(dt)
   if ctx.state.paused then return end
+<<<<<<< HEAD
   dt = math.min(dt, 1/30)
+=======
+  dt = math.min(dt, 1/30)  -- Cap delta time to prevent large jumps
+>>>>>>> a91d4cc (Fixed combat and movement)
   ctx.state.t = ctx.state.t + dt
   ctx.state.autosaveTimer = ctx.state.autosaveTimer + dt
   if ctx.state.autosaveTimer > ctx.G.AUTOSAVE_INTERVAL then
@@ -66,6 +79,11 @@ function love.update(dt)
   end
   
   simpleUI.update(dt)
+<<<<<<< HEAD
+=======
+  
+  -- Removed fireTimer update - using player's fireCooldown system instead
+>>>>>>> a91d4cc (Fixed combat and movement)
 end
 
 function love.draw()
@@ -98,10 +116,18 @@ function love.keypressed(key)
   if key == "space" then ctx.player.vx, ctx.player.vy = ctx.player.vx*0.2, ctx.player.vy*0.2 end
   if key == "f5" then save.save() end
   if key == "f9" then save.load() end
+<<<<<<< HEAD
+=======
+  if key == "c" then ctx.player.attackTarget = nil end -- Clear attack target
+>>>>>>> a91d4cc (Fixed combat and movement)
   if key == "e" then
     local dx,dy = ctx.player.x - ctx.station.x, ctx.player.y - ctx.station.y
     if util.len(dx,dy) < 320 then ctx.player.docked = not ctx.player.docked end
   end
+<<<<<<< HEAD
+=======
+  -- Removed manual fire key - using auto-attack system instead
+>>>>>>> a91d4cc (Fixed combat and movement)
 end
 
 function love.mousepressed(x,y,btn)
@@ -113,8 +139,16 @@ function love.mousepressed(x,y,btn)
     return
   end
   if btn == 1 then
+<<<<<<< HEAD
     -- Left click to fire rocket toward mouse
     player.fireRocket(x, y)
+=======
+    -- Left click: set attack target if clicking on enemy
+    local enemy = player.getEnemyUnderMouse()
+    if enemy then
+      player.setAttackTarget(enemy)
+    end
+>>>>>>> a91d4cc (Fixed combat and movement)
   elseif btn == 2 then
     -- Right click to move
     local lg = love.graphics
