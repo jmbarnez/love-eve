@@ -160,24 +160,6 @@ function SimpleUI.draw()
     -- credit.draw(statusX + 70, statusY + spacing * 4 - 2, 12)
     -- love.graphics.printf(string.format("%.2f", p.credits), statusX + 70 + 16, statusY + spacing * 4, 120, "left")
     
-    -- TARGET DISPLAY - TOP CENTER
-    if p.target and p.target.hp > 0 then
-        local targetW = 240
-        local targetX = (W - targetW) / 2  -- Center horizontally
-        local targetY = 20
-        
-        -- Target frame
-        love.graphics.setColor(theme.border)
-        love.graphics.rectangle("line", targetX - 5, targetY - 5, targetW + 10, 70, 3)
-        
-        -- Target label
-        love.graphics.setColor(theme.text)
-        love.graphics.printf("TARGET", targetX, targetY - 3, targetW, "center")
-        
-        -- Target bars with labels
-        drawTargetBar(targetX, targetY + 15, targetW, 16, p.target.hp, p.target.maxHP, theme.warning, "Hull")
-        drawTargetBar(targetX, targetY + 36, targetW, 16, p.target.shield, p.target.maxShield, theme.primary, "Shield")
-    end
     
     -- Fixed-size minimap (top right)
     local mapSize = 120
@@ -528,37 +510,35 @@ function SimpleUI.getTotalInventoryItems()
 end
 
 function SimpleUI.getItemDisplayName(itemType)
-    local displayNames = {
-        rockets = "Rockets",
-        energy_cells = "Energy Cells",
-        alien_tech = "Alien Tech",
-        credits = "Credits"
-    }
-    return displayNames[itemType] or string.gsub(itemType, "_", " ")
+    local items = require("src.content.items")
+    return items.getName(itemType)
 end
 
 function SimpleUI.drawItemIcon(itemType, x, y, size)
+    local items = require("src.content.items")
+    local color = items.getColor(itemType)
+    
     love.graphics.push()
     love.graphics.translate(x, y)
     
     if itemType == "rockets" then
         -- Rocket icon (triangle with flame)
-        love.graphics.setColor(0.8, 0.2, 0.2, 1) -- Red body
+        love.graphics.setColor(color[1], color[2], color[3], color[4])
         love.graphics.polygon("fill", 0, -size/2, -size/3, size/2, size/3, size/2)
         love.graphics.setColor(1, 0.5, 0, 1) -- Orange flame
         love.graphics.polygon("fill", -size/6, size/2, 0, size/2 + size/4, size/6, size/2)
     elseif itemType == "energy_cells" then
         -- Energy cell icon (battery shape)
-        love.graphics.setColor(0.2, 0.8, 0.2, 1) -- Green
+        love.graphics.setColor(color[1], color[2], color[3], color[4])
         love.graphics.rectangle("fill", -size/3, -size/2, size/3, size)
         love.graphics.rectangle("fill", -size/6, -size/2 - size/8, size/6, size/8) -- Terminal
-        love.graphics.setColor(0.1, 0.6, 0.1, 1)
+        love.graphics.setColor(color[1] * 0.7, color[2] * 0.7, color[3] * 0.7, color[4])
         love.graphics.rectangle("fill", -size/4, -size/3, size/4, size/3) -- Charge level
     elseif itemType == "alien_tech" then
         -- Alien tech icon (circuit-like)
-        love.graphics.setColor(0.8, 0.2, 0.8, 1) -- Purple
+        love.graphics.setColor(color[1], color[2], color[3], color[4])
         love.graphics.circle("fill", 0, 0, size/3)
-        love.graphics.setColor(0.6, 0.1, 0.6, 1)
+        love.graphics.setColor(color[1] * 0.7, color[2] * 0.7, color[3] * 0.7, color[4])
         love.graphics.circle("fill", -size/4, -size/4, size/6)
         love.graphics.circle("fill", size/4, -size/4, size/6)
         love.graphics.circle("fill", 0, size/4, size/6)
@@ -566,11 +546,38 @@ function SimpleUI.drawItemIcon(itemType, x, y, size)
         love.graphics.setLineWidth(2)
         love.graphics.line(-size/4, -size/4, size/4, -size/4)
         love.graphics.line(0, -size/4, 0, size/4)
+    elseif itemType == "repair_kit" then
+        -- Repair kit icon (medical cross)
+        love.graphics.setColor(color[1], color[2], color[3], color[4])
+        love.graphics.rectangle("fill", -size/8, -size/2, size/4, size)
+        love.graphics.rectangle("fill", -size/2, -size/8, size, size/4)
+    elseif itemType == "shield_booster" then
+        -- Shield booster icon (shield shape)
+        love.graphics.setColor(color[1], color[2], color[3], color[4])
+        love.graphics.polygon("fill", 0, -size/2, -size/3, -size/4, -size/3, size/3, 0, size/2, size/3, size/3, size/3, -size/4)
+    elseif itemType == "energy_drink" then
+        -- Energy drink icon (bottle)
+        love.graphics.setColor(color[1], color[2], color[3], color[4])
+        love.graphics.rectangle("fill", -size/6, -size/2, size/3, size * 0.8)
+        love.graphics.rectangle("fill", -size/8, -size/2 - size/8, size/4, size/8) -- Cap
+    elseif itemType == "quantum_core" then
+        -- Quantum core icon (pulsing orb)
+        local pulse = 0.8 + 0.2 * math.sin(love.timer.getTime() * 4)
+        love.graphics.setColor(color[1], color[2], color[3], color[4] * pulse)
+        love.graphics.circle("fill", 0, 0, size/3 * pulse)
+        love.graphics.setColor(1, 1, 1, 0.8)
+        love.graphics.circle("line", 0, 0, size/2)
+    elseif itemType == "neural_implant" then
+        -- Neural implant icon (brain-like)
+        love.graphics.setColor(color[1], color[2], color[3], color[4])
+        love.graphics.circle("fill", -size/6, -size/6, size/4)
+        love.graphics.circle("fill", size/6, -size/6, size/4)
+        love.graphics.rectangle("fill", -size/4, 0, size/2, size/3)
     else
-        -- Default icon (box)
-        love.graphics.setColor(0.5, 0.5, 0.5, 1)
+        -- Default icon (box with item color)
+        love.graphics.setColor(color[1], color[2], color[3], color[4])
         love.graphics.rectangle("fill", -size/2, -size/2, size, size)
-        love.graphics.setColor(0.3, 0.3, 0.3, 1)
+        love.graphics.setColor(color[1] * 0.7, color[2] * 0.7, color[3] * 0.7, color[4])
         love.graphics.rectangle("line", -size/2, -size/2, size, size)
     end
     
@@ -578,8 +585,17 @@ function SimpleUI.drawItemIcon(itemType, x, y, size)
 end
 
 function SimpleUI.drawTooltip(itemType, quantity, x, y)
+    local items = require("src.content.items")
+    local itemDef = items.get(itemType)
     local itemName = SimpleUI.getItemDisplayName(itemType)
-    local tooltipText = string.format("%s\nQuantity: %d", itemName, quantity)
+    
+    local tooltipText = itemName .. "\nQuantity: " .. quantity
+    if itemDef and itemDef.description then
+        tooltipText = tooltipText .. "\n" .. itemDef.description
+    end
+    if itemDef and itemDef.value then
+        tooltipText = tooltipText .. "\nValue: " .. itemDef.value .. " credits each"
+    end
     
     -- Measure text
     local font = love.graphics.getFont()
@@ -736,6 +752,19 @@ function SimpleUI.mousepressed(x, y, button)
                     containerContents[item.type] = nil
                 end
                 loot_box.showNotification("Took all items", {0, 1, 0, 1})
+                
+                -- Close container panel and remove from world
+                ctx.containerOpen = false
+                if ctx.currentContainer then
+                    for i, box in ipairs(ctx.lootBoxes) do
+                        if box == ctx.currentContainer then
+                            table.remove(ctx.lootBoxes, i)
+                            break
+                        end
+                    end
+                    ctx.currentContainer = nil
+                end
+                
                 return true
             end
         end

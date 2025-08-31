@@ -56,38 +56,24 @@ function M.showNotification(text, color)
 end
 
 function M.openLootBox(box)
-  -- Add contents to player inventory
+  local items = require("src.content.items")
+  local player = require("src.entities.player")
+  
   if box.contents.credits then
     ctx.player.credits = ctx.player.credits + box.contents.credits
     M.showNotification("+" .. string.format("%.2f", box.contents.credits) .. " Credits", {0.9, 0.8, 0.3, 1})
   end
   
-  if box.contents.rockets then
-    local player = require("src.entities.player")
-    player.addToInventory("rockets", box.contents.rockets.quantity)
-    M.showNotification("+" .. box.contents.rockets.quantity .. " Rockets", {1, 0.5, 0, 1})
+  for itemId, itemData in pairs(box.contents) do
+    if itemId ~= "credits" then
+      local quantity = itemData.quantity or 1
+      player.addToInventory(itemId, quantity)
+      local color = items.getColor(itemId)
+      local name = items.getName(itemId)
+      M.showNotification("+" .. quantity .. " " .. name, color)
+    end
   end
 
-  if box.contents.ammo then
-    local player = require("src.entities.player")
-    player.addToInventory("energy_cells", box.contents.ammo.quantity)
-    M.showNotification("+" .. box.contents.ammo.quantity .. " Energy Cells", {0.5, 0.8, 1, 1})
-  end
-
-  if box.contents.repairKit then
-    -- Heal player
-    ctx.player.hp = math.min(ctx.player.maxHP, ctx.player.hp + 50)
-    ctx.player.shield = math.min(ctx.player.maxShield, ctx.player.shield + 30)
-    M.showNotification("+50 HP +30 Shield", {0, 1, 0.5, 1})
-  end
-
-  if box.contents.rareItem then
-    local player = require("src.entities.player")
-    player.addToInventory("alien_tech", box.contents.rareItem.quantity)
-    M.showNotification("+Alien Technology Fragment", {1, 0.8, 0, 1})
-  end
-
-  -- Create particles for opening effect
   for k = 1, 20 do
     table.insert(ctx.particles, {
       x = box.x,
@@ -108,18 +94,17 @@ function M.draw()
     love.graphics.translate(box.x, box.y)
     love.graphics.rotate(ctx.state.t * (box.spin or 1))
 
-    -- Draw loot box as a metallic container
-    love.graphics.setColor(0.6, 0.6, 0.7, 1)  -- Metallic gray
-    love.graphics.rectangle("fill", -10, -10, 20, 20, 2, 2)
+    -- Simple basic container visual
+    love.graphics.setColor(0.7, 0.7, 0.8, 1)
+    love.graphics.rectangle("fill", -8, -8, 16, 16, 2)
+    
+    love.graphics.setColor(0.9, 0.9, 1, 1)
+    love.graphics.rectangle("line", -8, -8, 16, 16, 2)
 
-    -- Container details
-    love.graphics.setColor(0.4, 0.4, 0.5, 1)
-    love.graphics.rectangle("fill", -8, -8, 16, 16, 1, 1)
-
-    -- Glow effect when can interact
+    -- Simple interaction glow
     if box.canInteract then
-      love.graphics.setColor(0.2, 0.8, 1, 0.5 + 0.3 * math.sin(ctx.state.t * 6))
-      love.graphics.rectangle("fill", -12, -12, 24, 24, 3, 3)
+      love.graphics.setColor(0.3, 0.8, 1, 0.6)
+      love.graphics.rectangle("line", -10, -10, 20, 20, 3)
     end
 
     -- Interaction prompt (only if not already opened)

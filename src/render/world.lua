@@ -2,7 +2,7 @@
 local ctx     = require("src.core.ctx")
 local util    = require("src.core.util")
 local enemies = require("src.entities.enemy")
-local bullets = require("src.entities.bullet")
+local projectiles = require("src.entities.projectile")
 local loot    = require("src.entities.loot")
 local player  = require("src.entities.player")
 
@@ -22,18 +22,119 @@ local function genStars()
 end
 
 local function drawStation()
-  local s = 56
-  love.graphics.setColor(0.75,1.0,0.9,0.15)
-  love.graphics.circle("fill", ctx.station.x, ctx.station.y, 140)
-  love.graphics.setColor(0.8,1,1,1)
-  love.graphics.push(); love.graphics.translate(ctx.station.x, ctx.station.y); love.graphics.rotate(ctx.state.t*0.1)
-  for i=1,6 do
-    love.graphics.push(); love.graphics.rotate(i*math.pi/3)
-    love.graphics.polygon("line", s,0, s*0.5, s*0.35, 0,s, -s*0.5, s*0.35, -s,0, -s*0.5, -s*0.35, 0,-s, s*0.5,-s*0.35)
+  local x, y = ctx.station.x, ctx.station.y
+  local t = ctx.state.t
+  
+  -- Main station structure (much larger)
+  local mainRadius = 280
+  local coreRadius = 120
+  
+  -- Docking bay glow (larger radius for massive station)
+  love.graphics.setColor(0.3, 0.8, 1.0, 0.08)
+  love.graphics.circle("fill", x, y, 320)
+  
+  -- Outer defensive ring (rotating slowly)
+  love.graphics.setColor(0.6, 0.9, 1.0, 0.8)
+  love.graphics.push()
+  love.graphics.translate(x, y)
+  love.graphics.rotate(t * 0.05)
+  for i = 1, 12 do
+    love.graphics.push()
+    love.graphics.rotate(i * math.pi / 6)
+    love.graphics.translate(mainRadius, 0)
+    love.graphics.rectangle("line", -8, -24, 16, 48)
+    love.graphics.rectangle("line", -4, -16, 8, 32)
     love.graphics.pop()
   end
   love.graphics.pop()
-  love.graphics.setColor(1,1,1,1)
+  
+  -- Main station hull (octagonal core)
+  love.graphics.setColor(0.8, 1.0, 1.0, 1.0)
+  love.graphics.push()
+  love.graphics.translate(x, y)
+  love.graphics.rotate(t * 0.08)
+  
+  -- Central octagon
+  local points = {}
+  for i = 1, 8 do
+    local angle = i * math.pi / 4
+    table.insert(points, math.cos(angle) * coreRadius)
+    table.insert(points, math.sin(angle) * coreRadius)
+  end
+  love.graphics.polygon("line", points)
+  
+  -- Inner core details
+  love.graphics.circle("line", 0, 0, 60)
+  love.graphics.circle("line", 0, 0, 40)
+  
+  -- Rotating inner rings
+  for ring = 1, 3 do
+    love.graphics.push()
+    love.graphics.rotate(t * (0.15 + ring * 0.05) * (ring % 2 == 0 and -1 or 1))
+    local ringRadius = 20 + ring * 15
+    for i = 1, 6 do
+      love.graphics.push()
+      love.graphics.rotate(i * math.pi / 3)
+      love.graphics.line(0, ringRadius - 5, 0, ringRadius + 5)
+      love.graphics.pop()
+    end
+    love.graphics.pop()
+  end
+  love.graphics.pop()
+  
+  -- Docking arms (4 major arms extending outward)
+  love.graphics.setColor(0.7, 0.95, 1.0, 0.9)
+  love.graphics.push()
+  love.graphics.translate(x, y)
+  love.graphics.rotate(t * 0.03)
+  
+  for i = 1, 4 do
+    love.graphics.push()
+    love.graphics.rotate(i * math.pi / 2)
+    
+    -- Main arm structure
+    love.graphics.rectangle("line", 0, -12, 180, 24)
+    love.graphics.rectangle("line", 160, -20, 40, 40)
+    
+    -- Arm details
+    for j = 1, 3 do
+      local armX = j * 50
+      love.graphics.line(armX, -8, armX, 8)
+    end
+    
+    -- Docking port at end
+    love.graphics.circle("line", 200, 0, 16)
+    love.graphics.circle("line", 200, 0, 8)
+    
+    love.graphics.pop()
+  end
+  love.graphics.pop()
+  
+  -- Communication arrays and sensors
+  love.graphics.setColor(0.5, 0.8, 1.0, 0.7)
+  love.graphics.push()
+  love.graphics.translate(x, y)
+  love.graphics.rotate(t * -0.02)
+  
+  for i = 1, 8 do
+    love.graphics.push()
+    love.graphics.rotate(i * math.pi / 4)
+    love.graphics.translate(150, 0)
+    love.graphics.line(0, -30, 0, 30)
+    love.graphics.line(-5, -25, 5, -25)
+    love.graphics.line(-5, 25, 5, 25)
+    love.graphics.pop()
+  end
+  love.graphics.pop()
+  
+  -- Pulsing energy core
+  love.graphics.setColor(0.2, 0.9, 1.0, 0.6 + 0.4 * math.sin(t * 3))
+  love.graphics.circle("fill", x, y, 25)
+  love.graphics.setColor(1.0, 1.0, 1.0, 0.8 + 0.2 * math.sin(t * 3))
+  love.graphics.circle("fill", x, y, 12)
+  
+  -- Reset color
+  love.graphics.setColor(1, 1, 1, 1)
 end
 
 function M.init()
@@ -57,8 +158,8 @@ function M.draw()
   enemies.draw()
   player.draw()
 
-  -- bullets top so they render above ships
-  bullets.draw()
+  -- projectiles top so they render above ships
+  projectiles.draw()
 
   -- particles
   for _,p in ipairs(ctx.particles) do
@@ -67,13 +168,27 @@ function M.draw()
   end
   love.graphics.setColor(1,1,1,1)
 
-  -- waypoint
-  if ctx.player.autopilot and not ctx.player.docked then
-    love.graphics.setColor(0.4,1,0.9,0.6)
-    local tx,ty = ctx.player.autopilot.tx, ctx.player.autopilot.ty
-    love.graphics.circle("line", tx,ty, 18)
-    for i=1,3 do love.graphics.arc("line", tx,ty, 20+i*4, 0, ctx.state.t*2 + i*0.8) end
-    love.graphics.setColor(1,1,1,1)
+  -- movement waypoint
+  if ctx.player.moveTarget and not ctx.player.docked then
+    love.graphics.setColor(0.4, 1, 0.9, 0.8)
+    local tx, ty = ctx.player.moveTarget.x, ctx.player.moveTarget.y
+    
+    -- Main waypoint circle
+    love.graphics.circle("line", tx, ty, 12)
+    
+    -- Animated rings
+    for i = 1, 2 do
+      local radius = 15 + i * 8 + math.sin(ctx.state.t * 3 + i) * 3
+      local alpha = 0.6 - i * 0.2
+      love.graphics.setColor(0.4, 1, 0.9, alpha)
+      love.graphics.arc("line", tx, ty, radius, 0, math.pi * 2)
+    end
+    
+    -- Movement trail line
+    love.graphics.setColor(0.4, 1, 0.9, 0.3)
+    love.graphics.line(ctx.player.x, ctx.player.y, tx, ty)
+    
+    love.graphics.setColor(1, 1, 1, 1)
   end
 end
 

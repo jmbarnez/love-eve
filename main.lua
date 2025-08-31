@@ -11,7 +11,7 @@ local util     = require("src.core.util")
 
 local player   = require("src.entities.player")
 local enemies  = require("src.entities.enemy")
-local bullets  = require("src.entities.bullet")
+local projectiles = require("src.entities.projectile")
 local loot     = require("src.entities.loot")
 local lootBox  = require("src.entities.loot_box")
 
@@ -24,7 +24,7 @@ function love.load()
   love.window.setMode(0, 0, {fullscreen=true, resizable=true, vsync=1})
 
   ctx.G = settings.build()
-  ctx.state = { t = 0, paused=false, showHelp=true, autopilotFollowMouse=false, autosaveTimer=0 }
+  ctx.state = { t = 0, paused=false, showHelp=true, autosaveTimer=0 }
   ctx.fonts = {
     small = love.graphics.newFont(12),
     normal = love.graphics.newFont(14),
@@ -35,6 +35,7 @@ function love.load()
   world.init()
   player.init()
   enemies.init()
+  projectiles.init()
   dock.init()
   simpleUI.init()
 
@@ -59,7 +60,7 @@ function love.update(dt)
   else
     player.update(dt)
     enemies.update(dt)
-    bullets.update(dt)
+    projectiles.update(dt)
     loot.update(dt)
     lootBox.update(dt)
   end
@@ -95,12 +96,11 @@ function love.keypressed(key)
   -- Tab now opens inventory (handled by UI)
   if key == "h" then ctx.state.showHelp = not ctx.state.showHelp end
   if key == "space" then ctx.player.vx, ctx.player.vy = ctx.player.vx*0.2, ctx.player.vy*0.2 end
-  if key == "f" then ctx.state.autopilotFollowMouse = not ctx.state.autopilotFollowMouse end
   if key == "f5" then save.save() end
   if key == "f9" then save.load() end
   if key == "e" then
     local dx,dy = ctx.player.x - ctx.station.x, ctx.player.y - ctx.station.y
-    if util.len(dx,dy) < 120 then ctx.player.docked = not ctx.player.docked end
+    if util.len(dx,dy) < 320 then ctx.player.docked = not ctx.player.docked end
   end
 end
 
@@ -112,26 +112,15 @@ function love.mousepressed(x,y,btn)
     if btn == 1 then dock.click(x, y) end
     return
   end
-  if btn == 2 then
-    -- Target enemy
+  if btn == 1 then
+    -- Left click to fire rocket toward mouse
+    player.fireRocket(x, y)
+  elseif btn == 2 then
+    -- Right click to move
     local lg = love.graphics
     local wx = ctx.camera.x + (x - lg.getWidth()/2)/ctx.G.ZOOM
     local wy = ctx.camera.y + (y - lg.getHeight()/2)/ctx.G.ZOOM
-    local closestDist = 50  -- max click distance
-    local target = nil
-    for _,e in ipairs(ctx.enemies) do
-      local dx, dy = wx - e.x, wy - e.y
-      local dist = util.len(dx, dy)
-      if dist < closestDist then
-        closestDist = dist
-        target = e
-      end
-    end
-    ctx.player.target = target
-    -- Reset rocket timer for immediate first shot when targeting
-    if target then
-      ctx.player.lastRocketShot = 2.0  -- Set to fire interval to allow immediate shot
-    end
+    player.setMoveTarget(wx, wy)
   end
 end
 

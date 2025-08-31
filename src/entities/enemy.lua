@@ -1,6 +1,7 @@
-local ctx    = require("src.core.ctx")
-local util   = require("src.core.util")
-local bolt   = require("src.content.weapons.bolt")
+local ctx = require("src.core.ctx")
+local util = require("src.core.util")
+local projectiles = require("src.entities.projectile")
+local bolt = require("src.content.weapons.bolt")
 
 local M = {}
 local respawnTimer = 0
@@ -8,10 +9,10 @@ local respawnTimer = 0
 local function preset(level)
   local tier = math.min(1+math.floor((level-1)/3), 4)
   local presets = {
-    [1] = {hp=40, shield=30, speed=300, damage=10, fireRate=0.9, range=520, bonus= {xp=20, cr=30}},
-    [2] = {hp=70, shield=60, speed=350, damage=12, fireRate=1.2, range=640, bonus= {xp=30, cr=45}},
-    [3] = {hp=110, shield=90, speed=400, damage=16, fireRate=1.6, range=700, bonus= {xp=40, cr=65}},
-    [4] = {hp=160, shield=140, speed=450, damage=20, fireRate=2.0, range=760, bonus= {xp=55, cr=90}},
+    [1] = {hp=40, shield=30, speed=300, damage=10, fireRate=0.9, range=520, bonus= {xp=20, cr=30, tier=1}},
+    [2] = {hp=70, shield=60, speed=350, damage=12, fireRate=1.2, range=640, bonus= {xp=30, cr=45, tier=2}},
+    [3] = {hp=110, shield=90, speed=400, damage=16, fireRate=1.6, range=700, bonus= {xp=40, cr=65, tier=3}},
+    [4] = {hp=160, shield=140, speed=450, damage=20, fireRate=2.0, range=760, bonus= {xp=55, cr=90, tier=4}},
   }
   return presets[tier]
 end
@@ -23,7 +24,7 @@ function M.new(px,py, level)
     hp=p.hp, maxHP=p.hp,
     shield=p.shield, maxShield=p.shield, shieldRegen=6, shieldCooldown=0, shieldCDMax=2.4,
     accel=200, maxSpeed=p.speed, friction=1.0,
-    damage=p.damage, fireRate=p.fireRate, bulletSpeed=380, bulletLife=1.2,
+    damage=p.damage, fireRate=p.fireRate,
     spread=0.07, lastShot=0, range=p.range,
     bonus=p.bonus,
     state="idle", -- becomes "aggro" only when attacked
@@ -50,16 +51,9 @@ local function idleWander(e, dt)
   e.r  = e.r + (love.math.random()*2-1)*0.5*dt
 end
 
--- local bullet factory to avoid circular require
+-- Fire projectile at player
 local function fire(owner)
-  local s = (owner.spread or 0)
-  local angle = owner.r + (love.math.random()*2-1) * s
-  local spd = owner.bulletSpeed
-  local bx = owner.x + math.cos(angle)*(owner.radius+8)
-  local by = owner.y + math.sin(angle)*(owner.radius+8)
-  local bvx = math.cos(angle)*spd + (owner.vx or 0)*0.3
-  local bvy = math.sin(angle)*spd + (owner.vy or 0)*0.3
-  table.insert(ctx.bullets, {x=bx,y=by,vx=bvx,vy=bvy, life=owner.bulletLife, dmg=owner.damage, owner=owner, radius=3, weapon=bolt, target=ctx.player})
+  projectiles.createFromOwner(owner, bolt, ctx.player)
 end
 
 local function aggroChaseAndShoot(e, dt)
@@ -103,48 +97,9 @@ function M.makeAggressive(e)
 end
 
 function M.generateLootContents(bonus)
-  local contents = {}
-  
-  -- Always include some credits
-  contents.credits = math.floor((bonus.cr * (0.5 + love.math.random() * 0.5)) * 100) / 100  -- 50-100% of normal credits, rounded to 2 decimal places
-  
-  -- Always include rockets (guaranteed)
-  contents.rockets = {
-    type = "rockets",
-    name = "Rockets",
-    quantity = math.floor(10 + love.math.random() * 20),  -- 10-30 rockets
-    value = 5  -- credit value per rocket
-  }
-  
-  -- Chance for bonus items
-  if love.math.random() < 0.4 then  -- 40% chance for ammo
-    contents.ammo = {
-      type = "ammo",
-      name = "Energy Cells",
-      quantity = math.floor(5 + love.math.random() * 15),
-      value = 2
-    }
-  end
-  
-  if love.math.random() < 0.2 then  -- 20% chance for repair kit
-    contents.repairKit = {
-      type = "repair_kit",
-      name = "Nanite Repair Paste",
-      quantity = 1,
-      value = 50
-    }
-  end
-  
-  if love.math.random() < 0.15 then  -- 15% chance for rare item
-    contents.rareItem = {
-      type = "rare",
-      name = "Alien Technology Fragment",
-      quantity = 1,
-      value = 200
-    }
-  end
-  
-  return contents
+  local items = require("src.content.items")
+  local tier = bonus.tier or 1  -- Enemy tier for scaling drops
+  return items.generateRandomLoot(tier, bonus.cr)
 end
 
 function M.kill(index)
@@ -260,29 +215,13 @@ function M.draw()
 
     love.graphics.pop()
 
-    -- Draw shield effect if shields are active
-    if e.shield > 0 then
+    -- Draw shield effect only when actively blocking damage
+    if e.shield > 0 and e.shieldCooldown > 0 then
       local shieldRadius = e.radius + 8
-      local st = math.max(0, math.min(1, e.shield / e.maxShield))
-      local pulse = math.sin(ctx.state.t * 8) * 0.3 + 0.7
-      local alpha = 0.3 + 0.4 * st * pulse
       
-      -- Outer shield ring
-      love.graphics.setColor(0.8, 0.2, 0.3, alpha)  -- Reddish for enemies
+      -- Simple blue circle shield
+      love.graphics.setColor(0.2, 0.4, 1.0, 0.6)
       love.graphics.circle("line", e.x, e.y, shieldRadius)
-      
-      -- Inner shield glow
-      love.graphics.setColor(1.0, 0.4, 0.5, alpha * 0.5)
-      love.graphics.circle("fill", e.x, e.y, shieldRadius)
-      
-      -- Shield energy arcs
-      for i = 1, 6 do
-        local angle = (i / 6) * math.pi * 2 + ctx.state.t * 2
-        local arcX = e.x + math.cos(angle) * (shieldRadius - 2)
-        local arcY = e.y + math.sin(angle) * (shieldRadius - 2)
-        love.graphics.setColor(1.0, 0.6, 0.7, alpha * 0.8)
-        love.graphics.circle("fill", arcX, arcY, 2)
-      end
     end
 
     -- Shield and Health bars
@@ -319,12 +258,6 @@ function M.draw()
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.rectangle("line", barX, barY, barWidth, barHeight)
 
-    -- Target ring
-    if e == ctx.player.target then
-      love.graphics.setColor(1,0.5,0, 0.5 + 0.3*math.sin(ctx.state.t*4))  -- pulsing orange
-      love.graphics.circle("line", e.x, e.y, e.radius + 8)
-      love.graphics.setColor(1,1,1,1)
-    end
   end
   love.graphics.setColor(1,1,1,1)
 end
