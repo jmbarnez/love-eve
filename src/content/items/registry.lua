@@ -32,27 +32,6 @@ M.items = {
   },
   
   -- Weapon Ammo
-  ["rockets"] = {
-    id = "rockets",
-    name = "Plasma Rockets",
-    description = "High-damage rocket ammunition",
-    category = M.CATEGORIES.WEAPON_AMMO,
-    value = 5,
-    stackable = true,
-    maxStack = 999,
-    color = {1, 0.5, 0, 1}, -- Orange
-  },
-  
-  ["energy_cells"] = {
-    id = "energy_cells", 
-    name = "Energy Cells",
-    description = "Standard energy ammunition for laser weapons",
-    category = M.CATEGORIES.WEAPON_AMMO,
-    value = 2,
-    stackable = true,
-    maxStack = 9999,
-    color = {0.5, 0.8, 1, 1}, -- Blue
-  },
   
   -- Rare Items
   ["alien_tech"] = {
@@ -126,8 +105,8 @@ M.items = {
   -- EQUIPMENT MODULES (High Power)
   ["basic_turret"] = {
     id = "basic_turret",
-    name = "Basic Kinetic Turret",
-    description = "A basic kinetic turret module.",
+    name = "Basic Gun Turret",
+    description = "A basic gun turret module.",
     category = "equipment",
     slot_type = "high_power",
     module_type = "active",
@@ -135,55 +114,45 @@ M.items = {
     energy_cost = 10,
     cooldown = 2,
     duration = 1,
+    damage = {1, 3}, -- min, max
     value = 1000,
     stackable = false,
     maxStack = 1,
     color = {0.6, 0.6, 0.7, 1}, -- Greyish color
   },
 
-  ["small_railgun"] = {
-    id = "small_railgun",
-    name = "Small Focused Pulse Laser I",
-    description = "High-tech laser weapon that delivers focused energy pulses",
+  ["mining_laser"] = {
+    id = "mining_laser",
+    name = "Mining Laser I",
+    description = "Extracts ore from asteroids.",
     category = "equipment",
     slot_type = "high_power",
-    value = 500,
+    module_type = "active",
+    effect = "mine_asteroid",
+    energy_cost = 15,
+    cooldown = 3,
+    duration = 2,
+    value = 1500,
     stackable = false,
     maxStack = 1,
-    color = {0.8, 0.3, 0.1, 1}, -- Orange-red
-    stats = {
-      damage = 8
-    }
+    color = {0.9, 0.7, 0.2, 1}, -- Orangey-yellow
   },
 
-  ["small_missile_launcher"] = {
-    id = "small_missile_launcher",
-    name = "Small Missile Launcher I",
-    description = "Basic missile launcher for area denial and crowd control",
+  ["salvage_laser"] = {
+    id = "salvage_laser",
+    name = "Salvage Laser I",
+    description = "Recovers materials from wreckage.",
     category = "equipment",
     slot_type = "high_power",
-    value = 450,
+    module_type = "active",
+    effect = "salvage_wreck",
+    energy_cost = 20,
+    cooldown = 4,
+    duration = 3,
+    value = 2000,
     stackable = false,
     maxStack = 1,
-    color = {0.6, 0.4, 0.8, 1}, -- Purple
-    stats = {
-      damage = 12
-    }
-  },
-
-  ["small_energy_blaster"] = {
-    id = "small_energy_blaster",
-    name = "Dual Light Pulse Laser I",
-    description = "Double-barreled laser weapon with high damage output",
-    category = "equipment",
-    slot_type = "high_power",
-    value = 600,
-    stackable = false,
-    maxStack = 1,
-    color = {0.1, 0.7, 1, 1}, -- Light blue
-    stats = {
-      damage = 10
-    }
+    color = {0.2, 0.9, 0.7, 1}, -- Teal
   },
 
   ["small_repairer"] = {
@@ -244,9 +213,6 @@ M.items = {
     stackable = false,
     maxStack = 1,
     color = {0.9, 0.6, 1, 1}, -- Light purple
-    stats = {
-      damage = 2  -- Bonus accuracy = more damage
-    }
   },
 
   ["small_afterburner"] = {
@@ -276,9 +242,6 @@ M.items = {
     stackable = false,
     maxStack = 1,
     color = {0.8, 0.4, 0.2, 1}, -- Brown-orange
-    stats = {
-      damage = 3
-    }
   },
 
   ["co_processor"] = {
@@ -291,9 +254,6 @@ M.items = {
     stackable = false,
     maxStack = 1,
     color = {0.4, 0.8, 0.6, 1}, -- Turquoise
-    stats = {
-      damage = 2
-    }
   },
 
   ["adaptive_nano_plating"] = {
@@ -352,9 +312,6 @@ M.items = {
     stackable = false,
     maxStack = 1,
     color = {0.8, 0.3, 0.1, 1}, -- Bright orange
-    stats = {
-      damage = 5
-    }
   }
 }
 

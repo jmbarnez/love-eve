@@ -107,9 +107,18 @@ function M.draw()
       local qty = L.quantity or 1
       local label = string.format("%s x%d", itemName, qty)
       love.graphics.setColor(1, 1, 1, 0.95)
-      local f = love.graphics.getFont()
+      
+      -- Use the small font for loot labels
+      local smallFont = ctx.get("smallFont")
+      local originalFont = love.graphics.getFont()
+      love.graphics.setFont(smallFont)
+
+      local f = smallFont
       local w = f:getWidth(label)
       love.graphics.printf(label, L.x - w/2, L.y + 12, w, "left")
+      
+      -- Restore the original font
+      love.graphics.setFont(originalFont)
     end
 
     -- Draw interaction circle when mouse is hovering

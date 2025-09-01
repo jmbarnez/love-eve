@@ -4,62 +4,20 @@ local projectiles = require("src.systems.projectiles")
 local config = require("src.core.config")
 
 local M = {}
-local respawnTimers = {standard = 0, aggressive = 0, sniper = 0, bruiser = 0}
 
 -- Enemy variants for more variety (loaded from config)
-local enemyVariants
-local function loadEnemyVariants()
-  local enemyConfig = config.enemy
-  enemyVariants = {
-    standard = {
-      name = "standard",
-      color = {0.8, 0.1, 0.2},
-      baseSpeed = 1.0,
-      fireRateBonus = 1.0,
-      hpBonus = 1.0,
-      damageBonus = 1.0,
-      rangeBonus = 1.0,
-      rewardBonus = 1.0,
-      respawnTime = enemyConfig.respawnTimes.standard or 30.0
-    },
-    aggressive = {
-      name = "aggressive",
-      color = {0.9, 0.2, 0.2},
-      baseSpeed = 1.3,
-      fireRateBonus = 0.7,
-      hpBonus = 0.8,
-      damageBonus = 1.2,
-      rangeBonus = 0.9,
-      rewardBonus = 1.2,
-      respawnTime = enemyConfig.respawnTimes.aggressive or 35.0
-    },
-    sniper = {
-      name = "sniper",
-      color = {0.6, 0.2, 0.8},
-      baseSpeed = 0.8,
-      fireRateBonus = 1.5,
-      hpBonus = 0.6,
-      damageBonus = 1.4,
-      rangeBonus = 1.3,
-      rewardBonus = 1.5,
-      respawnTime = enemyConfig.respawnTimes.sniper or 45.0
-    },
-    bruiser = {
-      name = "bruiser",
-      color = {0.8, 0.4, 0.1},
-      baseSpeed = 0.6,
-      fireRateBonus = 2.0,
-      hpBonus = 1.8,
-      damageBonus = 1.5,
-      rangeBonus = 0.8,
-      rewardBonus = 1.8,
-      respawnTime = enemyConfig.respawnTimes.bruiser or 50.0
-    }
+local enemyVariants = {
+  drone = {
+    name = "drone",
+    color = {0.8, 0.1, 0.2},
+    baseSpeed = 1.0,
+    fireRateBonus = 1.0,
+    hpBonus = 1.0,
+    damageBonus = 1.0,
+    rangeBonus = 1.0,
+    rewardBonus = 1.0
   }
-end
-
--- Initialize variants
-loadEnemyVariants()
+}
 
 local function preset(level)
   local enemyConfig = config.enemy
@@ -67,10 +25,10 @@ local function preset(level)
   return enemyConfig.presets[tier]
 end
 
-function M.new(px,py, variantName, level)
+function M.new(px,py, level)
   local enemyConfig = config.enemy
   local p = preset(level)
-  local variant = enemyVariants[variantName]
+  local variant = enemyVariants.drone
 
   -- Base stats with procedural variation (±15%)
   local hpVariation = 1 + (love.math.random() - 0.5) * 0.3
@@ -87,8 +45,6 @@ function M.new(px,py, variantName, level)
   return {
     x=px, y=py, vx=0, vy=0, r=0, radius=enemyConfig.radius,
     hp=baseHP * hpVariation, maxHP=baseHP * hpVariation,
-    shield=enemyConfig.shield, maxShield=enemyConfig.shield,
-    shieldRegen=enemyConfig.shieldRegen, shieldCooldown=0, shieldCDMax=enemyConfig.shieldCDMax,
     accel=200, maxSpeed=baseSpeed * speedVariation, friction=1.0,
     damage=baseDamage * damageVariation, fireCooldown=0, fireCooldownMax=baseFireRate * fireRateVariation,
     spread=0.01, lastShot=0, range=baseRange,
@@ -105,9 +61,6 @@ end
 
 function M.init()
   state.set("enemies", {})
-  state.set("lootBoxes", {})
-  state.set("particles", {})
-  state.set("notifications", {})
 end
 
 local function keepInWorld(e)
@@ -188,10 +141,6 @@ local function aggroChaseAndShoot(e, dt)
   end
 end
 
-local function regen(e, dt)
-  -- Removed - enemies don't have shields
-end
-
 function M.onHit(e, dmg)
   -- No shields, direct damage to HP
   e.hp = e.hp - dmg
@@ -267,27 +216,16 @@ local function spawn(dt)
   local playerEntity = state.get("player")
   local gameConfig = state.get("config").game
 
-  if #enemies >= gameConfig.MAX_ENEMIES then return end
+  if #enemies >= 5 then return end
 
-  -- Update individual respawn timers
-  for variantType, timer in pairs(respawnTimers) do
-    respawnTimers[variantType] = math.max(0, timer - dt)
-    if respawnTimers[variantType] <= 0 then
-      -- Choose random variant type for spawning
-      local variantKeys = {}
-      for k, _ in pairs(respawnTimers) do
-        table.insert(variantKeys, k)
-      end
-      local spawnVariant = variantKeys[love.math.random(#variantKeys)]
-
-      -- Find spawn position
-      local x, y, valid = findRandomPosition(enemies, playerEntity, config.enemy, gameConfig)
-      if valid then
-        -- Spawn enemy
-        table.insert(enemies, M.new(x, y, spawnVariant, playerEntity.level))
-
-        -- Reset this variant's timer
-        respawnTimers[variantType] = enemyVariants[variantType].respawnTime + (love.math.random() * 5 - 2.5) -- ±2.5 seconds variation
+  -- Spawn a cluster of 5 drones
+  if #enemies == 0 then
+    local clusterX, clusterY, valid = findRandomPosition(enemies, playerEntity, config.enemy, gameConfig)
+    if valid then
+      for i = 1, 5 do
+        local offsetX = (love.math.random() * 2 - 1) * 50
+        local offsetY = (love.math.random() * 2 - 1) * 50
+        table.insert(enemies, M.new(clusterX + offsetX, clusterY + offsetY, playerEntity.level))
       end
     end
   end
@@ -303,7 +241,6 @@ function M.update(dt)
     else
       aggroChaseAndShoot(e, dt)
     end
-    -- No shield regen needed
     keepInWorld(e)
     if e.hp <= 0 then M.kill(i) end
   end
@@ -322,46 +259,59 @@ function M.draw()
     local baseColor = {0.6, 0.05, 0.15} -- darkened for appendages
     local eyeColor = variantColor -- use variant color for eyes too
 
-    -- Alien enemy ship with organic, menacing design
-    love.graphics.setColor(variantColor[1], variantColor[2], variantColor[3], 1)
+    -- Detailed drone design
     love.graphics.push()
     love.graphics.translate(e.x, e.y)
     love.graphics.rotate(e.r)
 
-    -- Main body - irregular organic shape
+    -- Main body (hexagonal core)
+    love.graphics.setColor(variantColor[1], variantColor[2], variantColor[3], 1)
     love.graphics.polygon("fill",
-      8,0,    -6,6,   -4,3,   -8,0,   -4,-3,   -6,-6
+      6, 0,    -- front point
+      3, 4,    -- top right
+      -3, 4,   -- top left
+      -6, 0,   -- back point
+      -3, -4,  -- bottom left
+      3, -4    -- bottom right
     )
 
-    -- Alien appendages/tentacles - adaptive color based on variant
-    if e.variant == "bruiser" then
-      love.graphics.setColor(0.6, 0.3, 0.1, 1) -- brown appendage for bruiser
-    elseif e.variant == "sniper" then
-      love.graphics.setColor(0.4, 0.1, 0.6, 1) -- purple appendage for sniper
-    else
-      love.graphics.setColor(baseColor[1], baseColor[2], baseColor[3], 1) -- default dark appendage
-    end
-    love.graphics.polygon("fill", 2,4, -10,8, -6,5)
-    love.graphics.polygon("fill", 2,-4, -10,-8, -6,-5)
-    love.graphics.polygon("fill", -2,6, -12,10, -8,7)
-    love.graphics.polygon("fill", -2,-6, -12,-10, -8,-7)
+    -- Gun barrel
+    love.graphics.setColor(0.3, 0.3, 0.3, 1) -- dark gray
+    love.graphics.rectangle("fill", 6, -1, 8, 2) -- gun barrel extending forward
+    
+    -- Gun tip (darker)
+    love.graphics.setColor(0.1, 0.1, 0.1, 1)
+    love.graphics.rectangle("fill", 13, -0.5, 2, 1)
 
-    -- Glowing alien eyes/sensors - color specific to variant
-    if e.variant == "aggressive" then
-      eyeColor = {1.0, 0.4, 0.2} -- bright orange for aggressive
-    elseif e.variant == "sniper" then
-      eyeColor = {1.0, 0.2, 1.0} -- magenta for sniper
-    elseif e.variant == "bruiser" then
-      eyeColor = {1.0, 0.6, 0.2} -- gold for bruiser
-    else
-      eyeColor = {1.0, 0.3, 0.1} -- orange for standard
-    end
-    love.graphics.setColor(eyeColor[1], eyeColor[2], eyeColor[3], 1)
-    love.graphics.circle("fill", 4, 2, 1.5)
-    love.graphics.circle("fill", 4, -2, 1.5)
-    love.graphics.setColor(1.0, 0.8, 0.2, 0.8) -- yellow centers for all
-    love.graphics.circle("fill", 4, 2, 0.8)
-    love.graphics.circle("fill", 4, -2, 0.8)
+    -- Engine exhausts (back of drone)
+    love.graphics.setColor(0.2, 0.2, 0.4, 1) -- dark blue
+    love.graphics.circle("fill", -6, 2, 1.5)  -- top engine
+    love.graphics.circle("fill", -6, -2, 1.5) -- bottom engine
+    
+    -- Engine glow effect
+    love.graphics.setColor(0.4, 0.6, 1.0, 0.6) -- light blue glow
+    love.graphics.circle("fill", -6, 2, 1)
+    love.graphics.circle("fill", -6, -2, 1)
+
+    -- Core details (sensor/cockpit area)
+    love.graphics.setColor(0.1, 0.1, 0.2, 1) -- very dark
+    love.graphics.circle("fill", 0, 0, 2)
+    
+    -- Sensor eye
+    love.graphics.setColor(1, 0.2, 0.2, 0.8) -- red sensor
+    love.graphics.circle("fill", 2, 0, 1)
+
+    -- Wing struts
+    love.graphics.setColor(0.4, 0.4, 0.4, 1) -- gray
+    love.graphics.setLineWidth(2)
+    love.graphics.line(-1, 0, -1, 4)  -- top strut
+    love.graphics.line(-1, 0, -1, -4) -- bottom strut
+    love.graphics.setLineWidth(1)
+
+    -- Small wing panels
+    love.graphics.setColor(variantColor[1] * 0.7, variantColor[2] * 0.7, variantColor[3] * 0.7, 1)
+    love.graphics.polygon("fill", -1, 4, 1, 3, 1, 5, -1, 5)   -- top wing
+    love.graphics.polygon("fill", -1, -4, 1, -3, 1, -5, -1, -5) -- bottom wing
 
     love.graphics.pop()
 
@@ -391,10 +341,8 @@ function M.draw()
     love.graphics.setColor(0.4, 0.4, 0.4, 1.0)
     love.graphics.rectangle("fill", barX, barY, barWidth, barHeight)
 
-    -- Health bar (green to red gradient)
-    local r = 1 - healthPercent
-    local g = healthPercent
-    love.graphics.setColor(r, g, 0.2, 1)
+    -- Health bar (red)
+    love.graphics.setColor(1, 0.2, 0.2, 1)
     love.graphics.rectangle("fill", barX, barY, barWidth * healthPercent, barHeight)
 
     -- Health border with glow

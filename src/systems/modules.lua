@@ -1,6 +1,7 @@
 local state = require("src.core.state")
 local util = require("src.core.util")
 local items = require("src.content.items.registry")
+local debug_console = require("src.ui.debug_console")
 
 local M = {}
 
@@ -40,7 +41,17 @@ function M.update(dt)
     for _, module in ipairs(active_modules) do
         if module.state == "active" then
             if module.def.effect == "fire_turret" then
-                player.fire_turret()
+                module.cooldown = math.max(0, module.cooldown - dt)
+                local target = player.get_attack_target()
+                if target and target.hp > 0 then
+                    local dist = util.distance(player.x, player.y, target.x, target.y)
+                    if dist <= module.def.range then
+                        if module.cooldown <= 0 then
+                            player.fire_turret(module.def)
+                            module.cooldown = module.def.cooldown or 1
+                        end
+                    end
+                end
             else
                 -- Existing duration/cooldown logic for other module types
                 module.duration = module.duration - dt
@@ -59,20 +70,28 @@ function M.update(dt)
     end
 end
 
--- Attempt to activate a module by its slot index (e.g., 1 for 'Q')
-function M.activate_module(index)
-    if not active_modules[index] then return false end
+-- Attempt to activate a module by hotbar index (0-9)
+function M.activate_module(hotbar_index)
+    debug_console.log("Attempting to activate module " .. hotbar_index)
+    -- Hotbar indices 1-10 correspond to keys 1-9,0
+    if hotbar_index < 1 or hotbar_index > 10 then return false end
+    
+    -- Get the module at this hotbar position
+    local module = active_modules[hotbar_index]
+    if not module then
+        debug_console.log("Module " .. hotbar_index .. " not found")
+        return false
+    end
 
-    local module = active_modules[index]
-
+    debug_console.log("Module state: " .. module.state)
     -- Toggle logic for turrets
     if module.def.effect == "fire_turret" then
         if module.state == "ready" then
             module.state = "active"
-            print("Activated module: " .. module.id)
+            debug_console.log("Activated module: " .. module.id)
         elseif module.state == "active" then
-            module.state = "ready"
-            print("Deactivated module: " .. module.id)
+            module.state = "ready" -- Set to ready when deactivated
+            debug_console.log("Deactivated module: " .. module.id)
         end
         return true
     end
@@ -87,10 +106,10 @@ function M.activate_module(index)
             module.state = "active"
             module.duration = module.def.duration or 0
             
-            print("Activated module: " .. module.id)
+            debug_console.log("Activated module: " .. module.id)
             return true
         else
-            print("Not enough energy to activate module: " .. module.id)
+            debug_console.log("Not enough energy to activate module: " .. module.id)
             return false
         end
     end
@@ -98,6 +117,7 @@ function M.activate_module(index)
 end
 
 function M.get_modules()
+    -- Return all active modules for hotbar display (up to 10)
     return active_modules
 end
 

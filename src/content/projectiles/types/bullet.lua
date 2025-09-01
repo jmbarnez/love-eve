@@ -9,13 +9,12 @@ M.description = "Standard physical bullet weapon"
 M.type = "bullet"
 
 -- Visual properties
-M.color = {0.9, 0.8, 0.2, 1}  -- Yellowish bullet
+M.color = {0.8, 0.8, 0.8, 1}  -- Gray
 M.shape = "circle"
-M.size = {radius = 3}
+M.size = {radius = 2}
 
 -- Combat properties
-M.damage = 12
-M.speed = 336
+M.speed = 500
 M.lifetime = 1.5
 M.fireRate = 0.5  -- One shot every 2 seconds
 
@@ -33,12 +32,19 @@ end
 
 -- Optional: particle effects on impact
 function M.onImpact(x, y)
-  -- Could add particle effects here
-  return {
-    particles = {
-      {x = x, y = y, vx = 0, vy = 0, life = 0.2, color = {0.9, 0.8, 0.2, 0.6}}
-    }
-  }
+  local particles = {}
+  for i = 1, 8 do
+    table.insert(particles, {
+      x = x,
+      y = y,
+      vx = (math.random() - 0.5) * 150,
+      vy = (math.random() - 0.5) * 150,
+      life = math.random() * 0.3 + 0.2,
+      color = {0.9, 0.9, 0.7, 1},
+      size = math.random() * 2 + 1
+    })
+  end
+  return { particles = particles }
 end
 
 return M

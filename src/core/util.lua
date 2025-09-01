@@ -11,4 +11,16 @@ function M.round(x) return math.floor(x+0.5) end
 function M.randf(a,b) return a + love.math.random()*(b-a) end
 function M.rand2(r) return M.randf(-r,r), M.randf(-r,r) end
 function M.rectContains(rx,ry,rw,rh,x,y) return x>=rx and y>=ry and x<=rx+rw and y<=ry+rh end
+
+function M.merge(base, overlay)
+  local new = {}
+  for k, v in pairs(base) do
+    new[k] = v
+  end
+  for k, v in pairs(overlay) do
+    new[k] = v
+  end
+  return new
+end
+
 return M

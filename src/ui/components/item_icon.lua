@@ -52,8 +52,15 @@ function M.draw(itemType, x, y, size)
     love.graphics.rectangle("fill", -size/4, 0, size/2, size/3)
   elseif itemType == "basic_turret" then
     love.graphics.setColor(color)
-    love.graphics.rectangle("fill", -size/4, -size/4, size/2, size/2)
-    love.graphics.rectangle("fill", -size/8, -size/2, size/4, size/2)
+    -- To center the icon, we draw relative to the center point (0,0) after translation.
+    local total_height = size * 0.4 + size / 8
+    local body_width = size * 0.4
+    local base_width = size / 3
+
+    -- Main turret body
+    love.graphics.rectangle("fill", -body_width/2, -total_height/2, body_width, size * 0.4)
+    -- Turret base
+    love.graphics.rectangle("fill", -base_width/2, -total_height/2 + size * 0.4, base_width, size / 8)
   else
     love.graphics.setColor(color)
     love.graphics.rectangle("fill", -size/2, -size/2, size, size)

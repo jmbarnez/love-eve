@@ -150,8 +150,9 @@ function M.draw()
   love.graphics.push()
   love.graphics.origin()
   for _,p in ipairs(particles) do
-    love.graphics.setColor(1,1,1, math.max(0, math.min(1, p.life)))
-    love.graphics.points(p.x - camera.x + W/2, p.y - camera.y + H/2)
+    local r, g, b, a = unpack(p.color or {1,1,1,1})
+    love.graphics.setColor(r, g, b, a * math.max(0, math.min(1, p.life)))
+    love.graphics.circle("fill", p.x - camera.x + W/2, p.y - camera.y + H/2, p.size or 2)
   end
   love.graphics.pop()
   love.graphics.setColor(1,1,1,1)

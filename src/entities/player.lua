@@ -15,9 +15,8 @@ function M.new()
     maxSpeed=playerConfig.maxSpeed,
     friction=playerConfig.friction,
     energy=playerConfig.energy, maxEnergy=playerConfig.maxEnergy, energyRegen=playerConfig.energyRegen,
-    hp=playerConfig.hp, maxHP=playerConfig.maxHP,
-    shield=playerConfig.shield, maxShield=playerConfig.maxShield, shieldRegen=playerConfig.shieldRegen, shieldCooldown=0, shieldCDMax=playerConfig.shieldCDMax,
-    damage=playerConfig.damage,
+    hp=10, maxHP=10,
+    shield=0, maxShield=0, shieldRegen=playerConfig.shieldRegen, shieldCooldown=0, shieldCDMax=playerConfig.shieldCDMax,
     fireCooldown=0, -- seconds until next shot allowed
     fireCooldownMax=playerConfig.fireCooldownMax, -- fixed cooldown for default attack
     spread=playerConfig.spread,
@@ -47,17 +46,14 @@ function M.init()
   state.set("player", playerEntity)
   
   -- Initialize inventory with starting items
-  M.addToInventory("energy_cells", 200)
-  M.addToInventory("repair_kit", 5)
-  M.addToInventory("shield_booster", 2)
-  M.addToInventory("alien_tech", 1)
+  M.addToInventory("repair_kit", 5, true)
+  M.addToInventory("shield_booster", 2, true)
+  M.addToInventory("alien_tech", 1, true)
+  M.addToInventory("mining_laser", 1, true)
+  M.addToInventory("salvage_laser", 1, true)
 
-  -- Initialize with some ship modules (equipment)
-  M.addToInventory("small_railgun", 2)
-  M.addToInventory("small_shield_booster", 1)
-  M.addToInventory("heat_sink", 1)
-  M.addToInventory("small_capacitor_booster", 1)
-  M.addToInventory("basic_turret", 1)
+  -- Initialize with basic turret (user can remove it later)
+  M.addToInventory("basic_turret", 1, true)
   M.equipItem("high_power_1", "basic_turret")
 end
 
@@ -79,8 +75,8 @@ local function applyMovement(dt)
       local ux, uy = dx / dist, dy / dist
       local desiredSpeed = math.min(playerEntity.maxSpeed, dist * 2)  -- Slow down as we approach
       local dvx, dvy = ux * desiredSpeed - playerEntity.vx, uy * desiredSpeed - playerEntity.vy
-      playerEntity.vx = playerEntity.vx + dvx * 5.0 * dt  -- Responsive movement
-      playerEntity.vy = playerEntity.vy + dvy * 5.0 * dt
+      playerEntity.vx = playerEntity.vx + dvx * 1.5 * dt  -- Responsive movement
+      playerEntity.vy = playerEntity.vy + dvy * 1.5 * dt
 
       -- Only face movement direction when not recently firing
       if playerEntity.lastShot > 0.5 then  -- 0.5 second grace period after firing
@@ -118,6 +114,7 @@ end
 local function clampPhysics(dt)
   local playerEntity = state.get("player")
   local gameConfig = state.get("config").game
+  local gameState = state.get("gameState")
   local p = playerEntity
   local spd = util.len(p.vx, p.vy)
   if spd > p.maxSpeed then local s = p.maxSpeed/spd; p.vx = p.vx*s; p.vy = p.vy*s end
@@ -136,8 +133,8 @@ local function clampPhysics(dt)
   local mx,my = love.mouse.getPosition()
   local lg = love.graphics
   local camera = state.get("camera")
-  local wx = camera.x + (mx - lg.getWidth()/2)/gameConfig.ZOOM
-  local wy = camera.y + (my - lg.getHeight()/2)/gameConfig.ZOOM
+  local wx = camera.x + (mx - lg.getWidth()/2)/gameState.zoom
+  local wy = camera.y + (my - lg.getHeight()/2)/gameState.zoom
   p.r = math.atan2(wy - p.y, wx - p.x)
 end
 
@@ -160,40 +157,32 @@ local function shooting(dt)
   end
 end
 
-function M.fire_turret()
+function M.fire_turret(turret)
     local playerEntity = state.get("player")
     local p = playerEntity
     local playerConfig = config.player
 
-    -- If no target, find the closest one in range
-    if not p.attackTarget or p.attackTarget.hp <= 0 then
-        local enemies = state.get("enemies")
-        local closest_enemy = nil
-        local min_dist = 601 -- Max range + 1
-
-        for _, enemy in ipairs(enemies) do
-            if enemy.hp > 0 then
-                local dist = util.len(p.x - enemy.x, p.y - enemy.y)
-                if dist < min_dist then
-                    min_dist = dist
-                    closest_enemy = enemy
-                end
-            end
-        end
-        p.attackTarget = closest_enemy
+    -- Clear target if it's dead (don't auto-select new target)
+    if p.attackTarget and p.attackTarget.hp <= 0 then
+        p.attackTarget = nil
     end
 
+    -- Only fire if we have a manually selected target
     if p.attackTarget and p.attackTarget.hp > 0 then
         local dx = p.attackTarget.x - p.x
         local dy = p.attackTarget.y - p.y
         local dist = util.len(dx, dy)
 
-        if dist < 600 and p.fireCooldown <= 0 and p.energy >= playerConfig.energyCostPerShot then
+        if dist < 600 and p.fireCooldown <= 0 then
             p.r = math.atan2(dy, dx)
 
             local projectiles = require("src.systems.projectiles")
-            local slug = require("src.content.projectiles.types.kinetic_slug")
-            projectiles.createFromOwner(p, slug, p.attackTarget)
+            local bullet = require("src.content.projectiles.types.bullet")
+            
+            -- Create a temporary weapon definition that merges turret and bullet properties
+            local weapon = util.merge(bullet, turret)
+
+            projectiles.createFromOwner(p, weapon, p.attackTarget)
 
             p.energy = math.max(0, p.energy - playerConfig.energyCostPerShot)
             p.lastShot = 0
@@ -205,12 +194,6 @@ function M.fire_turret()
         end
     end
     return false
-end
-
--- Function to fire rocket toward mouse position
-function M.fireRocket(mouseX, mouseY)
-  -- Rockets removed - now using auto attack with bullets
-  return false
 end
 
 function M.update(dt)
@@ -227,12 +210,25 @@ function M.update(dt)
   end
 end
 
-function M.addToInventory(itemType, quantity)
+function M.addToInventory(itemType, quantity, silent)
   local playerEntity = state.get("player")
   if not playerEntity.inventory[itemType] then
     playerEntity.inventory[itemType] = 0
   end
   playerEntity.inventory[itemType] = playerEntity.inventory[itemType] + quantity
+
+  if not silent then
+    -- Create a notification
+    local items = require("src.content.items.registry")
+    local itemName = items.getName(itemType)
+    local notifications = state.get("notifications")
+    table.insert(notifications, {
+      text = string.format("+%d %s", quantity, itemName),
+      timer = 3, -- seconds
+      x = playerEntity.x,
+      y = playerEntity.y - playerEntity.radius - 10
+    })
+  end
 end
 
 function M.removeFromInventory(itemType, quantity)
@@ -260,9 +256,9 @@ function M.getEnemyUnderMouse()
 
   -- Convert screen coordinates to world coordinates
   local camera = state.get("camera")
-  local gameConfig = state.get("config").game
-  local wx = camera.x + (mx - love.graphics.getWidth()/2) / gameConfig.ZOOM
-  local wy = camera.y + (my - love.graphics.getHeight()/2) / gameConfig.ZOOM
+  local gameState = state.get("gameState")
+  local wx = camera.x + (mx - love.graphics.getWidth()/2) / gameState.zoom
+  local wy = camera.y + (my - love.graphics.getHeight()/2) / gameState.zoom
 
   -- Check each enemy to see if mouse is over it
   local enemies = state.get("enemies")
@@ -320,7 +316,7 @@ function M.draw()
     love.graphics.setColor(1, 1, 1, 1)
   end
 
-  ship.draw(playerEntity.x, playerEntity.y, playerEntity.r, 1.0, util.len(playerEntity.vx, playerEntity.vy)/playerEntity.maxSpeed)
+  ship.draw(playerEntity.x, playerEntity.y, playerEntity.r, ship.scale, util.len(playerEntity.vx, playerEntity.vy)/playerEntity.maxSpeed)
   drawShield()
 
   -- Draw attack target indicator
@@ -380,11 +376,13 @@ function M.equipItem(slotId, itemId)
   playerEntity.maxHP = ship.maxHP
   playerEntity.maxShield = ship.maxShield
   playerEntity.maxEnergy = ship.maxEnergy
-  playerEntity.damage = ship.damage
   playerEntity.maxSpeed = ship.maxSpeed
   playerEntity.accel = ship.accel
   playerEntity.energyRegen = 10
   playerEntity.shieldRegen = 15
+  
+  -- Always restore HP to full when maxHP changes
+  playerEntity.hp = playerEntity.maxHP
 
   -- Apply equipment bonuses
   for eqSlotId, eqItemId in pairs(playerEntity.equipment or {}) do
@@ -429,11 +427,13 @@ function M.unequipItem(slotId)
   playerEntity.maxHP = ship.maxHP
   playerEntity.maxShield = ship.maxShield
   playerEntity.maxEnergy = ship.maxEnergy
-  playerEntity.damage = ship.damage
   playerEntity.maxSpeed = ship.maxSpeed
   playerEntity.accel = ship.accel
   playerEntity.energyRegen = 10
   playerEntity.shieldRegen = 15
+  
+  -- Always restore HP to full when maxHP changes
+  playerEntity.hp = playerEntity.maxHP
 
   -- Re-apply all remaining equipment bonuses
   for eqSlotId, eqItemId in pairs(playerEntity.equipment or {}) do
@@ -468,15 +468,16 @@ end
 
 function M.getTotalStats()
   local playerEntity = state.get("player")
+  local ship = require("src.content.ships.starter")
   return {
     maxHP = playerEntity.maxHP or 100,
     maxShield = playerEntity.maxShield or 120,
     maxEnergy = playerEntity.maxEnergy or 100,
-    damage = playerEntity.damage or 16,
     maxSpeed = playerEntity.maxSpeed or 300,
     accel = playerEntity.accel or 120,
     energyRegen = playerEntity.energyRegen or 10,
-    shieldRegen = playerEntity.shieldRegen or 15
+    shieldRegen = playerEntity.shieldRegen or 15,
+    damage = ship.damage or 16 -- Base ship damage
   }
 end
 

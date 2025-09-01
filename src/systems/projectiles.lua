@@ -13,30 +13,29 @@ local function getEnemyModule()
   return enemyModule
 end
 
--- Projectile types
-local TYPES = {
-  BOLT = "bolt",
-  ROCKET = "rocket",
-  MISSILE = "missile",
-  PLASMA = "plasma"
-}
-M.TYPES = TYPES
-
 -- Create new projectile
 local function newProjectile(x, y, vx, vy, weapon, owner, target)
+  local damage = 0
+  if weapon.damage then -- Turrets and other items will have a damage property
+    if type(weapon.damage) == "table" then
+      damage = love.math.random(weapon.damage[1], weapon.damage[2])
+    else
+      damage = weapon.damage
+    end
+  elseif owner.damage then -- Enemies have a damage property
+    damage = owner.damage
+  end
+
   return {
     x = x, y = y,
     vx = vx, vy = vy,
     life = weapon.lifetime,
-    damage = weapon.damage,
+    damage = damage,
     owner = owner,
     weapon = weapon,
     target = target,
     radius = weapon.radius or 3,
     type = weapon.type,
-    lockOnDelay = weapon.type == "rocket" and config.projectiles.rocketLockOnDelay or 0,
-    lockOnTimer = 0,
-    hasLockedOn = target ~= nil  -- true if fired with initial target
   }
 end
 
@@ -66,9 +65,7 @@ local function checkShieldHit(projectile, target)
   if target.shield and target.shield > 0 and distToCenter <= shieldRadius then
     target.shieldCooldown = target.shieldCDMax
     
-    -- Bullets do less damage to shields
-    local damageMultiplier = projectile.weapon.type == "bullet" and projectileConfig.bulletShieldDamageMultiplier or 1.0
-    local damageToShield = math.min(target.shield, projectile.damage * damageMultiplier)
+    local damageToShield = math.min(target.shield, projectile.damage)
     target.shield = target.shield - damageToShield
     target.shieldVisible = true
     return true
@@ -79,17 +76,20 @@ end
 -- Hit enemy
 local function hitEnemy(projectile, enemyIndex)
   local enemies = state.get("enemies")
+  local particles = state.get("particles")
   local e = enemies[enemyIndex]
   if not e then return end
   
-  -- Check shield first
-  if checkShieldHit(projectile, e) then
-    e.state = "aggro"
-    local projectiles = state.get("projectiles")
-    table.remove(projectiles, projectile._i)
-    return
+  -- Trigger impact effect if defined
+  if projectile.weapon.onImpact then
+    local impactData = projectile.weapon.onImpact(projectile.x, projectile.y)
+    if impactData and impactData.particles then
+      for _, particleData in ipairs(impactData.particles) do
+        table.insert(particles, particleData)
+      end
+    end
   end
-  
+
   -- Direct hit - use cached enemy module to avoid circular dependency
   local enemy = getEnemyModule()
   enemy.onHit(e, projectile.damage)
@@ -116,7 +116,9 @@ local function hitPlayer(projectile)
     return
   end
   
+  print("Player HP before hit: " .. playerEntity.hp)
   playerEntity.hp = playerEntity.hp - projectile.damage
+  print("Player HP after hit: " .. playerEntity.hp)
   
   -- Make enemy aggressive
   if projectile.owner and projectile.owner ~= playerEntity then
@@ -149,55 +151,10 @@ local function hitPlayer(projectile)
   end
 end
 
--- Find nearest enemy target for projectile
-local function findNearestEnemy(projectile, maxRange)
-  local enemies = state.get("enemies")
-  local projectileConfig = config.projectiles
-  local nearestEnemy = nil
-  local nearestDist = maxRange or projectileConfig.lockOnRange  -- 400 unit lock-on range
-  
-  for _, enemy in ipairs(enemies) do
-    if enemy.hp > 0 then
-      local dx = enemy.x - projectile.x
-      local dy = enemy.y - projectile.y
-      local dist = util.len(dx, dy)
-      
-      if dist < nearestDist then
-        nearestDist = dist
-        nearestEnemy = enemy
-      end
-    end
-  end
-  
-  return nearestEnemy
-end
-
 -- Update homing behavior
 local function updateHoming(projectile, dt)
-  local projectileConfig = config.projectiles
-  -- Handle lock-on delay for rockets
-  if projectile.weapon.type == "rocket" and not projectile.hasLockedOn then
-    projectile.lockOnTimer = projectile.lockOnTimer + dt
-    
-    if projectile.lockOnTimer >= projectileConfig.lockOnDelay then
-      -- Time to lock onto nearest enemy
-      projectile.target = findNearestEnemy(projectile)
-      projectile.hasLockedOn = true
-    else
-      -- Still in lock-on delay, fly straight
-      return true
-    end
-  end
-  
   if not projectile.target or projectile.target.hp <= 0 then
-    -- Try to find new target for rockets
-    if projectile.weapon.type == "rocket" and projectile.hasLockedOn then
-      projectile.target = findNearestEnemy(projectile)
-    end
-    
-    if not projectile.target then
-      return true  -- Keep flying straight if no target
-    end
+    return true  -- Keep flying straight if no target
   end
   
   local dx = projectile.target.x - projectile.x
@@ -209,22 +166,15 @@ local function updateHoming(projectile, dt)
     local targetVx = (dx / dist) * spd
     local targetVy = (dy / dist) * spd
     
-    -- Smooth homing for rockets
-    if projectile.weapon.type == "rocket" then
-      local homingStrength = config.projectiles.homingStrength * dt
-      projectile.vx = projectile.vx + (targetVx - projectile.vx) * homingStrength
-      projectile.vy = projectile.vy + (targetVy - projectile.vy) * homingStrength
+    -- Direct tracking for bullets
+    if projectile.owner ~= state.get("player") then
+      -- Enemy projectiles get perfect tracking to ensure hits
+      projectile.vx = targetVx
+      projectile.vy = targetVy
     else
-      -- Direct tracking for bolts and bullets
-      if projectile.owner ~= state.get("player") then
-        -- Enemy projectiles get perfect tracking to ensure hits
-        projectile.vx = targetVx
-        projectile.vy = targetVy
-      else
-        -- Player projectiles use normal tracking
-        projectile.vx = targetVx
-        projectile.vy = targetVy
-      end
+      -- Player projectiles use normal tracking
+      projectile.vx = targetVx
+      projectile.vy = targetVy
     end
   end
   
@@ -241,7 +191,7 @@ function M.update(dt)
     p._i = i
 
     -- Update homing if applicable
-    if p.weapon.type == "rocket" or (p.target and (p.weapon.type == "bolt" or p.weapon.type == "bullet")) then
+    if p.target then
       updateHoming(p, dt)
     end
 
@@ -252,6 +202,15 @@ function M.update(dt)
 
     -- Remove if expired
     if p.life <= 0 then
+      if p.weapon.onImpact then
+        local impactData = p.weapon.onImpact(p.x, p.y)
+        if impactData and impactData.particles then
+          local particles = state.get("particles")
+          for _, particleData in ipairs(impactData.particles) do
+            table.insert(particles, particleData)
+          end
+        end
+      end
       table.remove(projectiles, i)
     else
       -- Collision detection
@@ -260,7 +219,7 @@ function M.update(dt)
         local enemies = state.get("enemies")
         for j = #enemies, 1, -1 do
           local e = enemies[j]
-          if util.len2(p.x - e.x, p.y - e.y) <= (e.radius + p.radius) * (e.radius + p.radius) then
+          if util.len2(p.x - e.x, p.y - e.y) <= (e.radius * 0.8 + p.radius * 0.8) * (e.radius * 0.8 + p.radius * 0.8) then
             hitEnemy(p, j)
             break
           end
@@ -268,7 +227,16 @@ function M.update(dt)
       else
         -- Enemy projectile hitting player
         local playerEntity = state.get("player")
-        if util.len2(p.x - playerEntity.x, p.y - playerEntity.y) <= (playerEntity.radius + p.radius) * (playerEntity.radius + p.radius) then
+        if util.len2(p.x - playerEntity.x, p.y - playerEntity.y) <= (playerEntity.radius * 0.8 + p.radius * 0.8) * (playerEntity.radius * 0.8 + p.radius * 0.8) then
+          if p.weapon.onImpact then
+            local impactData = p.weapon.onImpact(p.x, p.y)
+            if impactData and impactData.particles then
+              local particles = state.get("particles")
+              for _, particleData in ipairs(impactData.particles) do
+                table.insert(particles, particleData)
+              end
+            end
+          end
           hitPlayer(p)
         end
       end

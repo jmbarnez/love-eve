@@ -13,28 +13,14 @@ function M.draw()
 
   local W, H = love.graphics.getWidth(), love.graphics.getHeight()
 
-  -- Bottom-left cluster (three rings)
-  local marginX, marginY = 90, 90
-  local cx = marginX
-  local cy = H - marginY
-
-  local capR = 26
-  local hullR = capR + 9
-  local shieldR = hullR + 6
-
-  -- Energy (capacitor) center ring
-  bars.ringProgress(cx, cy, capR, p.energy or 0, p.maxEnergy or 1, theme.energy, nil, { thickness = 5 })
-
-  -- Hull and Shield outer rings
-  bars.ringProgress(cx, cy, shieldR, p.shield or 0, p.maxShield or 1, theme.primary, nil, { thickness = 3 })
-  bars.ringProgress(cx, cy, hullR,   p.hp or 0,     p.maxHP or 1,     theme.warning, nil, { thickness = 3 })
-
   -- Central module hotbar
   local active_modules = modules.get_modules()
   if #active_modules > 0 then
-    local BAR_WIDTH = 400
-    local BAR_HEIGHT = 60
     local ICON_SIZE = 48
+    local PADDING = 10
+    local NUM_SLOTS = 4
+    local BAR_WIDTH = (ICON_SIZE * NUM_SLOTS) + (PADDING * (NUM_SLOTS + 1))
+    local BAR_HEIGHT = ICON_SIZE + (PADDING * 2)
     local bar_x = (W - BAR_WIDTH) / 2
     local bar_y = H - BAR_HEIGHT - 20
 
@@ -42,12 +28,32 @@ function M.draw()
     love.graphics.setColor(0.1, 0.1, 0.1, 0.7)
     love.graphics.rectangle("fill", bar_x, bar_y, BAR_WIDTH, BAR_HEIGHT, 5)
 
-    for i, module in ipairs(active_modules) do
-        local icon_x = bar_x + (i - 1) * (ICON_SIZE + 10) + 10
-        local icon_y = bar_y + (BAR_HEIGHT - ICON_SIZE) / 2
+    -- Status rings above the hotbar
+    local cx = W / 2
+    local cy = bar_y - 60
+    local capR = 26
+    local hullR = capR + 9
+    local shieldR = hullR + 6
 
+    -- Energy (capacitor) center ring
+    bars.ringProgress(cx, cy, capR, p.energy or 0, p.maxEnergy or 1, theme.energy, nil, { thickness = 5 })
+
+    -- Hull and Shield outer rings
+    bars.ringProgress(cx, cy, shieldR, p.shield or 0, p.maxShield or 1, theme.primary, nil, { thickness = 3 })
+    bars.ringProgress(cx, cy, hullR,   p.hp or 0,     p.maxHP or 1,     theme.warning, nil, { thickness = 3 })
+
+    for i = 1, NUM_SLOTS do
+      local module = active_modules[i]
+      local icon_x = bar_x + (i - 1) * (ICON_SIZE + PADDING) + PADDING
+      local icon_y = bar_y + (BAR_HEIGHT - ICON_SIZE) / 2
+
+      -- Draw a slot background
+      love.graphics.setColor(0.2, 0.2, 0.2, 0.5)
+      love.graphics.rectangle("fill", icon_x, icon_y, ICON_SIZE, ICON_SIZE, 3)
+
+      if module then
         -- Draw the item icon
-        item_icon.draw(module.id, icon_x, icon_y, ICON_SIZE)
+        item_icon.draw(module.id, icon_x + ICON_SIZE / 2, icon_y + ICON_SIZE / 2, ICON_SIZE)
 
         -- Check for hover and draw tooltip
         local mx, my = love.mouse.getPosition()
@@ -56,22 +62,31 @@ function M.draw()
         end
 
         -- Draw cooldown/duration overlay
-        if module.state == "cooldown" then
-            local cooldown_percent = module.cooldown / (module.def.cooldown or 5)
-            love.graphics.setColor(0, 0, 0, 0.8)
-            love.graphics.rectangle("fill", icon_x, icon_y + ICON_SIZE * (1 - cooldown_percent), ICON_SIZE, ICON_SIZE * cooldown_percent)
-        elseif module.state == "active" then
-            love.graphics.setColor(0, 1, 0, 0.3)
-            love.graphics.setLineWidth(2)
-            love.graphics.rectangle("fill", icon_x, icon_y, ICON_SIZE, ICON_SIZE)
-        end
+        if module.state == "active" then
+          -- Green overlay for active modules
+          local r, g, b, a = 0, 1, 0, 0.3
+          love.graphics.setColor(r, g, b, a)
+          love.graphics.rectangle("fill", icon_x, icon_y, ICON_SIZE, ICON_SIZE)
 
-        -- Draw the key binding
-        love.graphics.setColor(theme.text)
-        local key = ({"Q", "W", "E", "R"})[i]
-        if key then
-          love.graphics.printf(key, icon_x, icon_y + ICON_SIZE - 12, ICON_SIZE, "center")
+          -- Cooldown bar for inter-shot delay or other active effects
+          if module.cooldown > 0 then
+            local cooldown_percent = module.cooldown / (module.def.cooldown or 1)
+            love.graphics.setColor(0, 0, 0, 0.7)
+            love.graphics.rectangle("fill", icon_x, icon_y + ICON_SIZE * (1 - cooldown_percent), ICON_SIZE, ICON_SIZE * cooldown_percent)
+          end
+        elseif module.state == "cooldown" then
+          local cooldown_percent = module.cooldown / (module.def.cooldown or 5)
+          love.graphics.setColor(0, 0, 0, 0.8)
+          love.graphics.rectangle("fill", icon_x, icon_y + ICON_SIZE * (1 - cooldown_percent), ICON_SIZE, ICON_SIZE * cooldown_percent)
         end
+      end
+
+      -- Draw the key binding
+      love.graphics.setColor(theme.text)
+      local key = ({"q", "w", "e", "r"})[i]
+      if key then
+        love.graphics.printf(key, icon_x, icon_y + ICON_SIZE - 12, ICON_SIZE, "center")
+      end
     end
   end
 
@@ -161,4 +176,34 @@ function M.draw()
   love.graphics.setColor(1, 1, 1, 1)
 end
 
+function M.mousepressed(x, y, button)
+  if button ~= 1 then return false end
+
+  local active_modules = modules.get_modules()
+  if #active_modules > 0 then
+    local W, H = love.graphics.getWidth(), love.graphics.getHeight()
+    local ICON_SIZE = 48
+    local PADDING = 10
+    local NUM_SLOTS = 4
+    local BAR_WIDTH = (ICON_SIZE * NUM_SLOTS) + (PADDING * (NUM_SLOTS + 1))
+    local BAR_HEIGHT = ICON_SIZE + (PADDING * 2)
+    local bar_x = (W - BAR_WIDTH) / 2
+    local bar_y = H - BAR_HEIGHT - 20
+
+    for i = 1, NUM_SLOTS do
+      local module = active_modules[i]
+      if module then
+        local icon_x = bar_x + (i - 1) * (ICON_SIZE + PADDING) + PADDING
+        local icon_y = bar_y + (BAR_HEIGHT - ICON_SIZE) / 2
+
+        if x > icon_x and x < icon_x + ICON_SIZE and y > icon_y and y < icon_y + ICON_SIZE then
+          modules.activate_module(i)
+          return true
+        end
+      end
+    end
+  end
+
+  return false
+end
 return M

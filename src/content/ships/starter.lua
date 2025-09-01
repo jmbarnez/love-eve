@@ -11,7 +11,7 @@ M.class = "starter"
 
 -- Combat stats
 M.maxHP = 100
-M.maxShield = 120
+M.maxShield = 0
 M.maxEnergy = 100
 
 -- Movement properties
@@ -26,8 +26,8 @@ M.bulletLife = 1.2
 M.spread = 0.06
 
 -- Visual properties
-M.scale = 1.0
-M.radius = 14
+M.scale = 0.6
+M.radius = 3.5
 
 -- Ship appearance data
 M.colors = {

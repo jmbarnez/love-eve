@@ -210,12 +210,21 @@ function M.updateTurret(moduleId, module, dt)
 
     -- Create turret projectile
     local bullet = require("src.content.projectiles.types.bullet")
+
+    -- Calculate angle towards target
+    local dx = closestTarget.x - turretX
+    local dy = closestTarget.y - turretY
+    local angle = math.atan2(dy, dx)
+
     local turretOwner = {
       x = turretX,
       y = turretY,
+      r = angle,
       damage = moduleData.damage,
       vx = 0,
-      vy = 0
+      vy = 0,
+      radius = moduleData.radius,
+      spread = 0.1  -- Small spread for turret inaccuracy
     }
 
     projectiles.createFromOwner(turretOwner, bullet, closestTarget)
@@ -388,17 +397,31 @@ function M.draw()
 end
 
 function M.drawTurret(x, y, moduleData, rotation)
-  love.graphics.push()
-  love.graphics.translate(x, y)
-  love.graphics.rotate(rotation)
+    love.graphics.push()
+    love.graphics.translate(x, y)
 
-  -- Turret base
-  love.graphics.circle("fill", 0, 0, moduleData.radius)
+    -- Base of the turret
+    love.graphics.setColor(0.4, 0.5, 0.6)
+    love.graphics.circle("fill", 0, 0, moduleData.radius + 2)
+    love.graphics.setColor(0.6, 0.7, 0.8)
+    love.graphics.circle("fill", 0, 0, moduleData.radius)
 
-  -- Turret barrel
-  love.graphics.rectangle("fill", 0, -3, 25, 6)
+    -- Rotating part of the turret
+    love.graphics.rotate(rotation)
 
-  love.graphics.pop()
+    -- Barrel mount
+    love.graphics.setColor(0.5, 0.6, 0.7)
+    love.graphics.rectangle("fill", -5, -5, 15, 10)
+
+    -- Barrel
+    love.graphics.setColor(0.3, 0.4, 0.5)
+    love.graphics.rectangle("fill", 10, -3, 20, 6)
+
+    -- Muzzle
+    love.graphics.setColor(0.2, 0.3, 0.4)
+    love.graphics.rectangle("fill", 30, -4, 5, 8)
+
+    love.graphics.pop()
 end
 
 function M.drawCore(x, y, moduleData, t)

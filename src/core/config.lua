@@ -10,7 +10,6 @@ M.game = {
   CAMERA_SMOOTH = 8,
   ZOOM = 1.2,
   UI_SCALE = 1.0,
-  AUTOSAVE_INTERVAL = 60,
 
   -- Window settings
   WINDOW_FULLSCREEN = true,
@@ -27,9 +26,9 @@ M.game = {
 }
 
 M.player = {
-  radius = 14,
-  accel = 80,
-  maxSpeed = 160,
+  radius = 7,
+  accel = 40,
+  maxSpeed = 90,
   friction = 1.0,
   energy = 100,
   maxEnergy = 100,
@@ -63,7 +62,7 @@ M.enemy = {
   },
   presets = {
     [1] = {
-      hp = 40,
+      hp = 5,
       speed = 240,
       damage = 10,
       fireCooldownMax = 1.11,

@@ -1,9 +1,7 @@
 -- DarkOrbit-style Single Player (Refactored) — LÖVE 11.x
 
 local state = require("src.core.state")
-local settings = require("src.core.settings")
 local camera = require("src.core.camera")
-local save = require("src.core.persistence.save")
 local util = require("src.core.util")
 
 local player   = require("src.entities.player")
@@ -14,21 +12,27 @@ local loot     = require("src.entities.loot")
 local wreckage = require("src.entities.wreckage")
 
 local world    = require("src.render.world")
-local dock     = require("src.ui.dock_window")
+-- local dock     = require("src.ui.dock_window")
 local simpleUI = require("src.ui.simple_ui")
 local modules = require("src.systems.modules")
+local debug_console = require("src.ui.debug_console")
+local settings_panel = require("src.ui.panels.settings")
 
 function love.load()
   love.window.setTitle("DarkOrbit-like (Single Player, Refactored)")
-  love.window.setMode(0, 0, {fullscreen=true, resizable=true, vsync=1})
+  love.window.setMode(1280, 720, {resizable=true, vsync=true})
   love.graphics.setDefaultFilter("nearest", "nearest")
+  
+  -- Create a smaller font for loot labels
+  local defaultFont = love.graphics.getFont()
+  state.set("smallFont", love.graphics.newFont(10)) -- Create a 10px font
 
-  -- Initialize state system
+  -- Initialize game state
   state.init()
 
   local gameState = state.get("gameState")
-  local config = state.get("config") or require("src.core.config") or { game = { AUTOSAVE_INTERVAL = 60, ZOOM = 1.0 } }
-  gameState.G = config.game or { AUTOSAVE_INTERVAL = 60, ZOOM = 1.0 }
+  local config = state.get("config") or require("src.core.config") or { game = { ZOOM = 1.0 } }
+  gameState.G = config.game or { ZOOM = 1.0 }
 
   world.init()
   player.init()
@@ -36,7 +40,7 @@ function love.load()
   spaceStation.init()
   loot.init()
   projectiles.init()
-  dock.init()
+  -- dock.init()
   simpleUI.init()
   wreckage.init()
   modules.init()
@@ -45,26 +49,18 @@ function love.load()
   gameState.rightMouseHeld = false
   gameState.zoom = gameState.G.ZOOM or 1.2  -- Initialize zoom
 
-  -- Attempt to load existing save
-  save.load()
 end
 
 function love.update(dt)
   local gameState = state.get("gameState")
-  local config = state.get("config") or require("src.core.config") or { game = { AUTOSAVE_INTERVAL = 60, ZOOM = 1.0 } }
-  local gameConfig = config.game or { AUTOSAVE_INTERVAL = 60, ZOOM = 1.0 }
+  local gameConfig = state.get("config").game
+  local playerEntity = state.get("player")
 
   if gameState.paused then return end
   dt = math.min(dt, 1/30)  -- Cap delta time to prevent large jumps
   gameState.t = gameState.t + dt
-  gameState.autosaveTimer = gameState.autosaveTimer + dt
-  if gameState.autosaveTimer > gameConfig.AUTOSAVE_INTERVAL then
-    gameState.autosaveTimer = 0
-    save.save()
-  end
 
   -- Handle continuous right-click movement
-  local playerEntity = state.get("player")
   if gameState.rightMouseHeld and playerEntity and not playerEntity.docked then
     local mx, my = love.mouse.getPosition()
     local lg = love.graphics
@@ -76,7 +72,6 @@ function love.update(dt)
 
   camera.update(dt)
 
-  local playerEntity = state.get("player")
   if playerEntity.docked then
     player.regenDocked(dt)
   else
@@ -90,6 +85,19 @@ function love.update(dt)
   end
   
   simpleUI.update(dt)
+  debug_console.update(dt)
+
+  -- Update particles
+  local particles = state.get("particles")
+  for i = #particles, 1, -1 do
+    local p = particles[i]
+    p.x = p.x + p.vx * dt
+    p.y = p.y + p.vy * dt
+    p.life = p.life - dt
+    if p.life <= 0 then
+      table.remove(particles, i)
+    end
+  end
 end
 
 function love.draw()
@@ -105,11 +113,12 @@ function love.draw()
 
   -- Minimal Sci-Fi HUD System
   local playerEntity = state.get("player")
-  if playerEntity.docked then dock.draw() end
+  -- if playerEntity.docked then dock.draw() end
   
   simpleUI.draw()
+  debug_console.draw()
 
-  if gameState.paused then
+  if gameState.paused and not settings_panel.isOpen() then
     local lg = love.graphics
     lg.push(); lg.origin()
     lg.setColor(0,0,0,0.5); lg.rectangle("fill", 0,0, lg.getWidth(), lg.getHeight())
@@ -121,21 +130,21 @@ end
 function love.keypressed(key)
   local gameState = state.get("gameState")
 
+  -- Let debug console handle keyboard input first
+  if debug_console.keypressed(key) then return end
+
   -- Let UI handle input first
   if simpleUI.keypressed(key) then return end
   
-  if key == "escape" then gameState.paused = not gameState.paused end
+  if key == "escape" then settings_panel.toggle(); return end
   -- Tab now opens inventory (handled by UI)
   if key == "h" then gameState.showHelp = not gameState.showHelp end
   if key == "space" then
     local playerEntity = state.get("player")
-    playerEntity.vx, playerEntity.vy = playerEntity.vx*0.2, playerEntity.vy*0.2
+    playerEntity.vx, playerEntity.vy = playerEntity.vx*0.9, playerEntity.vy*0.9
   end
-  if key == "f5" then save.save() end
-  if key == "f9" then save.load() end
   if key == "c" then
-    local playerEntity = state.get("player")
-    playerEntity.attackTarget = nil
+    debug_console.toggle()
   end
   if key == "d" then
     local playerEntity = state.get("player")
@@ -148,15 +157,10 @@ function love.keypressed(key)
     gameState.zoom = math.min(2.0, gameState.zoom * 1.2)
   elseif key == "-" then
     gameState.zoom = math.max(0.5, gameState.zoom / 1.2)
-  elseif key == "1" then
-    gameState.zoom = 0.5
-  elseif key == "2" then
-    gameState.zoom = 1.0
-  elseif key == "3" then
-    gameState.zoom = 2.0
   end
-  -- Ability controls (QWER keys like EVE Online)
+  -- Hotbar controls (q, w, e, r)
   if key == "q" then
+    debug_console.log("Activating module 1 from main.lua")
     modules.activate_module(1)
   elseif key == "w" then
     modules.activate_module(2)
@@ -172,11 +176,14 @@ function love.mousepressed(x,y,btn)
   local playerEntity = state.get("player")
   local gameState = state.get("gameState")
 
+  -- Let debug console handle mouse input first
+  if debug_console.mousepressed(x, y, btn) then return end
+
   -- Let UI handle mouse input first
   if simpleUI.mousepressed(x, y, btn) then return end
   
   if playerEntity.docked then
-    if btn == 1 then dock.click(x, y) end
+    -- if btn == 1 then dock.click(x, y) end
     return
   end
   if btn == 1 then
@@ -198,8 +205,6 @@ function love.mousepressed(x,y,btn)
       gameState.rightMouseHeld = true
       local lg = love.graphics
       local camera = state.get("camera")
-      local config = state.get("config") or require("src.core.config") or { game = { ZOOM = 1.0 } }
-      local gameConfig = config.game or { ZOOM = 1.0 }
       local wx = camera.x + (x - lg.getWidth()/2)/gameState.zoom
       local wy = camera.y + (y - lg.getHeight()/2)/gameState.zoom
       player.setMoveTarget(wx, wy)
@@ -210,6 +215,9 @@ end
 function love.mousereleased(x, y, btn)
   local gameState = state.get("gameState")
   
+  -- Let debug console handle mouse release first
+  debug_console.mousereleased(x, y, btn)
+  
   if simpleUI.mousereleased(x, y, btn) then return end
   
   if btn == 2 then
@@ -218,10 +226,19 @@ function love.mousereleased(x, y, btn)
   end
 end
 
+function love.mousemoved(x, y, dx, dy)
+  debug_console.mousemoved(x, y, dx, dy)
+end
+
 function love.wheelmoved(x, y)
   local gameState = state.get("gameState")
   
-  -- Zoom in/out with scroll wheel
+  -- Let debug console handle scrolling first (and consume event if handled)
+  if debug_console.mousewheelmoved(x, y) then
+    return -- Don't zoom if console handled the scroll
+  end
+  
+  -- Then handle zoom
   if y > 0 then
     -- Zoom in
     gameState.zoom = math.min(2.0, gameState.zoom * 1.2)
@@ -232,5 +249,4 @@ function love.wheelmoved(x, y)
 end
 
 function love.quit()
-  save.save()
 end

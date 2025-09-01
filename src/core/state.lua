@@ -18,7 +18,6 @@ function M.init()
     t = 0,
     paused = false,
     showHelp = true,
-    autosaveTimer = 0,
   }
   serviceLocator.register("gameState", state)
 
@@ -49,9 +48,9 @@ function M.init()
   serviceLocator.register("currentContainer", nil)
 
   -- Initialize game data arrays used by entities
-  M.lootBoxes = {}
-  M.notifications = {}
-  M.particles = {}
+  serviceLocator.register("lootBoxes", {})
+  serviceLocator.register("notifications", {})
+  serviceLocator.register("particles", {})
 end
 
 -- Get service by name

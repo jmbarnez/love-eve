@@ -8,27 +8,34 @@ local tooltip = require("src.ui.components.tooltip")
 local credit = require("src.content.credit")
 local window = require("src.ui.components.window")
 local drag = require("src.ui.core.drag")
+local items = require("src.content.items.registry")
 
 local Panel = {
   open = false,
   x = nil,
   y = nil,
   drag = nil,
-  showStats = true  -- Toggle for stats window within equipment panel
+  showStats = true,  -- Toggle for stats window within equipment panel
+  turretMenu = {
+    open = false,
+    x = 0,
+    y = 0,
+    slotId = nil
+  }
 }
 
 -- Equipment slot definitions
 local EQUIPMENT_SLOTS = {
-  "high_power_1", "high_power_2", "high_power_3", "high_power_4",
-  "mid_power_1", "mid_power_2", "mid_power_3", "mid_power_4",
+  "high_power_1", -- Q slot - turrets only
+  "mid_power_1", "mid_power_2", "mid_power_3", -- W, E, R slots
   "low_power_1", "low_power_2", "low_power_3",
   "rigs_1", "rigs_2", "rigs_3",
   "drone_1"
 }
 
 local SLOT_NAMES = {
-  high_power_1 = "High Slot 1", high_power_2 = "High Slot 2", high_power_3 = "High Slot 3", high_power_4 = "High Slot 4",
-  mid_power_1 = "Mid Slot 1", mid_power_2 = "Mid Slot 2", mid_power_3 = "Mid Slot 3", mid_power_4 = "Mid Slot 4",
+  high_power_1 = "Turret Slot (Q)",
+  mid_power_1 = "Module Slot (W)", mid_power_2 = "Module Slot (E)", mid_power_3 = "Module Slot (R)",
   low_power_1 = "Low Slot 1", low_power_2 = "Low Slot 2", low_power_3 = "Low Slot 3",
   rigs_1 = "Rig Slot 1", rigs_2 = "Rig Slot 2", rigs_3 = "Rig Slot 3",
   drone_1 = "Drone Bay"
@@ -56,7 +63,7 @@ local function updatePlayerStats()
 
   -- Apply equipment bonuses
   for slotId, itemId in pairs(equipment) do
-    local itemDef = require("src.content.items.registry").get(itemId)
+    local itemDef = items.get(itemId)
     if itemDef and itemDef.slot_type and itemDef.stats then
       -- Only apply if item can fit in this slot
       if (itemDef.slot_type == "high_power" and string.find(slotId, "high_power")) or
@@ -84,6 +91,25 @@ end
 
 function Panel.isOpen()
   return Panel.open
+end
+
+function Panel.findAvailableSlot(slotType)
+  local playerEntity = state.get("player")
+  local equipment = playerEntity.equipment or {}
+  for _, slotId in ipairs(EQUIPMENT_SLOTS) do
+    local currentSlotType = ""
+    if string.find(slotId, "high_power") then currentSlotType = "high_power"
+    elseif string.find(slotId, "mid_power") then currentSlotType = "mid_power"
+    elseif string.find(slotId, "low_power") then currentSlotType = "low_power"
+    elseif string.find(slotId, "rigs") then currentSlotType = "rig"
+    elseif string.find(slotId, "drone") then currentSlotType = "drone"
+    end
+
+    if currentSlotType == slotType and not equipment[slotId] then
+      return slotId
+    end
+  end
+  return nil
 end
 
 function Panel.update(dt)
@@ -212,14 +238,13 @@ function Panel.draw()
 
   -- Draw equipment slots in EVE-like layout
   local hoveredSlots = {}
-  local items = require("src.content.items.registry")
   local inventory = playerEntity.inventory or {}
 
   -- High slots (top row)
   love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
   love.graphics.printf("HIGH POWER SLOTS", mainX + 10, mainY + 10, mainW, "left")
 
-  for i = 1, 4 do
+  for i = 1, 1 do
     local slotId = "high_power_" .. i
     local row = 0
     local col = i - 1
@@ -260,11 +285,11 @@ function Panel.draw()
     end
   end
 
-  -- Mid slots (second row)
+  --[[ -- Mid slots (second row)
   love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
   love.graphics.printf("MID POWER SLOTS", mainX + 10, mainY + 110, mainW, "left")
 
-  for i = 1, 4 do
+  for i = 1, 3 do
     local slotId = "mid_power_" .. i
     local row = 1
     local col = i - 1
@@ -423,7 +448,7 @@ function Panel.draw()
       equipped = equipment[slotId],
       available = inventory
     })
-  end
+  end]]
 
   -- Draw tooltips
   for _, slotData in ipairs(hoveredSlots) do
@@ -434,7 +459,7 @@ function Panel.draw()
         tooltipText = tooltipText .. "\n" .. itemDef.name .. "\n" .. (itemDef.description or "")
       end
     else
-      tooltipText = tooltipText .. "\nEmpty\nRight-click to equip"
+      tooltipText = tooltipText .. "\nEmpty\nRight-click item in inventory to equip"
     end
     tooltip.draw(slotData.equipped or "empty_slot", 1, slotData.x, slotData.y)
   end
@@ -448,12 +473,151 @@ function Panel.draw()
   credit.draw(x + 10, y + WND_H - 18 - 2, 12)
   love.graphics.printf(string.format("Credits: %s", playerEntity.credits >= 1000000 and string.format("%.1fM", playerEntity.credits/1000000) or string.format("%.2f", playerEntity.credits)),
                       x + 26, y + WND_H - 18, 200, "left")
+                      
+  -- Draw turret selection menu
+  if Panel.turretMenu.open then
+    local inventory = playerEntity.inventory or {}
+    
+    -- Get available turrets
+    local availableTurrets = {}
+    for itemId, count in pairs(inventory) do
+      if count > 0 then
+        local itemDef = items.get(itemId)
+        if itemDef and itemDef.slot_type == "high_power" then
+          table.insert(availableTurrets, {id = itemId, def = itemDef, count = count})
+        end
+      end
+    end
+    
+    if #availableTurrets > 0 then
+      local menuX, menuY = Panel.turretMenu.x, Panel.turretMenu.y
+      local menuW, menuH = 220, #availableTurrets * 30 + 10
+      
+      -- Menu background
+      love.graphics.setColor(0.1, 0.1, 0.1, 0.95)
+      love.graphics.rectangle("fill", menuX, menuY, menuW, menuH, 4)
+      love.graphics.setColor(0.4, 0.6, 0.8, 1)
+      love.graphics.setLineWidth(2)
+      love.graphics.rectangle("line", menuX, menuY, menuW, menuH, 4)
+      
+      -- Header
+      love.graphics.setColor(0.8, 0.9, 1, 1)
+      love.graphics.setFont(fonts and fonts.small or love.graphics.newFont(12))
+      love.graphics.printf("SELECT TURRET", menuX + 5, menuY + 2, menuW - 10, "center")
+      
+      -- Draw turret options
+      local mouseX, mouseY = love.mouse.getPosition()
+      for i, turret in ipairs(availableTurrets) do
+        local optionY = menuY + 5 + (i - 1) * 30
+        local optionH = 25
+        
+        -- Highlight if hovered
+        local hovered = mouseX >= menuX and mouseX <= menuX + menuW and 
+                       mouseY >= optionY and mouseY <= optionY + optionH
+        
+        if hovered then
+          love.graphics.setColor(0.3, 0.5, 0.7, 0.7)
+          love.graphics.rectangle("fill", menuX + 2, optionY, menuW - 4, optionH, 2)
+        end
+        
+        -- Turret icon
+        love.graphics.setColor(turret.def.color[1], turret.def.color[2], turret.def.color[3], turret.def.color[4])
+        love.graphics.rectangle("fill", menuX + 8, optionY + 3, 18, 18, 2)
+        love.graphics.setColor(1, 1, 1, 0.8)
+        love.graphics.rectangle("line", menuX + 8, optionY + 3, 18, 18, 2)
+        
+        -- Turret name and count
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.setFont(fonts and fonts.small or love.graphics.newFont(11))
+        love.graphics.print(turret.def.name, menuX + 30, optionY + 4)
+        love.graphics.print("x" .. turret.count, menuX + menuW - 35, optionY + 4)
+        
+        -- Description if hovered
+        if hovered and turret.def.description then
+          love.graphics.setColor(0.8, 0.8, 0.8, 0.8)
+          love.graphics.setFont(fonts and fonts.small or love.graphics.newFont(9))
+          love.graphics.print(turret.def.description, menuX + 30, optionY + 16)
+        end
+      end
+      
+      love.graphics.setFont(love.graphics.getFont()) -- Reset font
+    else
+      -- No turrets available message
+      local menuX, menuY = Panel.turretMenu.x, Panel.turretMenu.y
+      local menuW, menuH = 200, 40
+      
+      love.graphics.setColor(0.1, 0.1, 0.1, 0.95)
+      love.graphics.rectangle("fill", menuX, menuY, menuW, menuH, 4)
+      love.graphics.setColor(0.6, 0.4, 0.4, 1)
+      love.graphics.setLineWidth(2)
+      love.graphics.rectangle("line", menuX, menuY, menuW, menuH, 4)
+      
+      love.graphics.setColor(1, 0.8, 0.8, 1)
+      love.graphics.setFont(fonts and fonts.small or love.graphics.newFont(12))
+      love.graphics.printf("No turrets in inventory", menuX + 5, menuY + 15, menuW - 10, "center")
+    end
+  end
 end
 
 function Panel.mousepressed(x, y, button)
-  if button ~= 1 or not Panel.open then return false end
   local WND_W, WND_H = 700, 600
   local wx, wy = Panel.x or 0, Panel.y or 0
+  
+  -- Handle turret selection menu clicks
+  if Panel.turretMenu.open then
+    local menuClicked = false
+    local playerEntity = state.get("player")
+    local inventory = playerEntity.inventory or {}
+    
+    -- Get available turrets
+    local availableTurrets = {}
+    for itemId, count in pairs(inventory) do
+      if count > 0 then
+        local itemDef = items.get(itemId)
+        if itemDef and itemDef.slot_type == "high_power" then
+          table.insert(availableTurrets, {id = itemId, def = itemDef})
+        end
+      end
+    end
+    
+    -- Check if clicked on a turret option
+    local menuX, menuY = Panel.turretMenu.x, Panel.turretMenu.y
+    local menuW, menuH = 200, #availableTurrets * 30 + 10
+    
+    if x >= menuX and x <= menuX + menuW and y >= menuY and y <= menuY + menuH then
+      menuClicked = true
+      if button == 1 then -- Left click
+        -- Calculate which turret was clicked
+        local relY = y - menuY - 5
+        local turretIndex = math.floor(relY / 30) + 1
+        
+        if turretIndex >= 1 and turretIndex <= #availableTurrets then
+          local selectedTurret = availableTurrets[turretIndex]
+          if not playerEntity.docked then
+            print("You must be docked to change equipment.")
+          else
+            local player = require("src.entities.player")
+            local success, message = player.equipItem(Panel.turretMenu.slotId, selectedTurret.id)
+            if success then
+              print("Equipped: " .. message)
+            else
+              print("Failed to equip: " .. message)
+            end
+          end
+        end
+      end
+    end
+    
+    -- Close menu unless clicked on it
+    if not menuClicked or button == 1 then
+      Panel.turretMenu.open = false
+    end
+    
+    return true
+  end
+  
+  if button ~= 1 or not Panel.open then return false end
+  
   if window.isInTitle(x, y, wx, wy, WND_W) then
     if window.isInRect(x, y, window.closeRect(wx, wy, WND_W)) then
       Panel.open = false
@@ -473,6 +637,25 @@ function Panel.mousepressed(x, y, button)
   if x >= mainX + mainW - 90 and x <= mainX + mainW - 90 + toggleW and
      y >= toggleY and y <= toggleY + toggleH then
     Panel.showStats = not Panel.showStats
+    return true
+  end
+
+  -- Check left-click on turret slot to open selection menu
+  local slotSize = 48
+  local spacing = 12
+  local px, py = x - wx, y - wy
+  
+  -- Check high power slot (turret slot)
+  local slotId = "high_power_1"
+  local slotX = 10
+  local slotY = 30
+  
+  if px >= slotX and px <= slotX + slotSize and py >= slotY and py <= slotY + slotSize then
+    -- Open turret selection menu
+    Panel.turretMenu.open = true
+    Panel.turretMenu.x = x + 10
+    Panel.turretMenu.y = y + 10
+    Panel.turretMenu.slotId = slotId
     return true
   end
 
@@ -499,10 +682,9 @@ function Panel.mousereleased(x, y, button)
 
     -- Check if clicked within a specific slot
     local equipment = getPlayerEquipment()
-    local items = require("src.content.items.registry")
 
     -- Check high slots
-    for i = 1, 4 do
+    for i = 1, 1 do
       local slotId = "high_power_" .. i
       local row = 0
       local col = i - 1
@@ -511,6 +693,11 @@ function Panel.mousereleased(x, y, button)
 
       if px >= slotX and px <= slotX + slotSize and py >= slotY and py <= slotY + slotSize then
         if equipment[slotId] then
+            local playerEntity = state.get("player")
+            if not playerEntity.docked then
+                print("You must be docked to change equipment.")
+                return true
+            end
           -- Unequip item
           local player = require("src.entities.player")
           local success, message = player.unequipItem(slotId)
@@ -526,7 +713,7 @@ function Panel.mousereleased(x, y, button)
     end
 
     -- Check mid slots
-    for i = 1, 4 do
+    for i = 1, 3 do
       local slotId = "mid_power_" .. i
       local row = 1
       local col = i - 1
