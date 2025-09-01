@@ -12,6 +12,10 @@ function M.randf(a,b) return a + love.math.random()*(b-a) end
 function M.rand2(r) return M.randf(-r,r), M.randf(-r,r) end
 function M.rectContains(rx,ry,rw,rh,x,y) return x>=rx and y>=ry and x<=rx+rw and y<=ry+rh end
 
+function M.distance(x1, y1, x2, y2)
+  return M.len(x2 - x1, y2 - y1)
+end
+
 function M.merge(base, overlay)
   local new = {}
   for k, v in pairs(base) do

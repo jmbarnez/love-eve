@@ -11,16 +11,16 @@ local scroll_offset = 0
 local panel_height = 300
 local panel_width = 500
 local visible_lines = 0
-local ui_scale = 0.6
+local ui_scale = 1.0
 
 -- Panel state
 local panel = {
-    x = 10 * ui_scale,
-    y = 0, -- Will be calculated
-    width = panel_width * ui_scale,
-    height = panel_height * ui_scale,
+    x = 0,
+    y = 0,
+    width = 0, -- Will be calculated
+    height = 0, -- Will be calculated
     title = "Debug Console",
-    visible = true,
+    visible = false,
     dragging = false,
     drag_offset_x = 0,
     drag_offset_y = 0,
@@ -263,13 +263,11 @@ end
 
 -- Update
 function M.update(dt)
-    -- Only auto-position if not being dragged and not manually positioned
-    if not panel.dragging and panel.x == (10 * ui_scale) and panel.y == 0 then
-        -- Position panel in bottom-left, accounting for hotbar
-        local screen_height = love.graphics.getHeight()
-        local hotbar_height = (52 * ui_scale) + (20 * ui_scale) -- button size + margin
-        panel.y = screen_height - panel.height - hotbar_height - (10 * ui_scale)
-    end
+    local screen_w, screen_h = love.graphics.getWidth(), love.graphics.getHeight()
+    panel.width = screen_w
+    panel.height = screen_h / 2
+    panel.x = 0
+    panel.y = 0
 end
 
 -- Draw the debug console panel
@@ -286,17 +284,17 @@ function M.draw()
     visible_lines = math.floor(content_height / (font_height + line_spacing))
     
     -- Panel background (dark with sci-fi styling)
-    love.graphics.setColor(0.05, 0.05, 0.1, 0.9)
-    love.graphics.rectangle("fill", panel.x, panel.y, panel.width, panel.height, 6 * ui_scale)
+    love.graphics.setColor(0.05, 0.05, 0.1, 0.8)
+    love.graphics.rectangle("fill", panel.x, panel.y, panel.width, panel.height)
     
     -- Panel border (blue accent)
     love.graphics.setColor(theme.primary[1], theme.primary[2], theme.primary[3], 0.7)
-    love.graphics.setLineWidth(2 * ui_scale)
-    love.graphics.rectangle("line", panel.x, panel.y, panel.width, panel.height, 6 * ui_scale)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", panel.x, panel.y, panel.width, panel.height)
     
     -- Title bar background
-    love.graphics.setColor(0.1, 0.15, 0.25, 0.9)
-    love.graphics.rectangle("fill", panel.x, panel.y, panel.width, title_height, 6 * ui_scale, 6 * ui_scale, 0, 0)
+    love.graphics.setColor(0.1, 0.15, 0.25, 0.8)
+    love.graphics.rectangle("fill", panel.x, panel.y, panel.width, title_height)
     
     -- Title bar border
     love.graphics.setColor(theme.primary[1], theme.primary[2], theme.primary[3], 0.5)

@@ -172,8 +172,7 @@ function M.fire_turret(turret)
         local dx = p.attackTarget.x - p.x
         local dy = p.attackTarget.y - p.y
         local dist = util.len(dx, dy)
-
-        if dist < 600 and p.fireCooldown <= 0 then
+        if turret.range and dist < turret.range and p.fireCooldown <= 0 then
             p.r = math.atan2(dy, dx)
 
             local projectiles = require("src.systems.projectiles")

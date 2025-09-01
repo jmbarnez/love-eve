@@ -115,6 +115,7 @@ M.items = {
     cooldown = 2,
     duration = 1,
     damage = {1, 3}, -- min, max
+    range = 600,
     value = 1000,
     stackable = false,
     maxStack = 1,

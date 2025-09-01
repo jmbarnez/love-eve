@@ -37,17 +37,19 @@ end
 
 -- Update all active modules
 function M.update(dt)
-    local player = require("src.entities.player")
+    local player = state.get("player")
+    if not player then return end
+
     for _, module in ipairs(active_modules) do
         if module.state == "active" then
             if module.def.effect == "fire_turret" then
                 module.cooldown = math.max(0, module.cooldown - dt)
-                local target = player.get_attack_target()
+                local target = player.attackTarget
                 if target and target.hp > 0 then
                     local dist = util.distance(player.x, player.y, target.x, target.y)
-                    if dist <= module.def.range then
+                    if module.def.range and dist <= module.def.range then
                         if module.cooldown <= 0 then
-                            player.fire_turret(module.def)
+                            require("src.entities.player").fire_turret(module.def)
                             module.cooldown = module.def.cooldown or 1
                         end
                     end
@@ -72,26 +74,21 @@ end
 
 -- Attempt to activate a module by hotbar index (0-9)
 function M.activate_module(hotbar_index)
-    debug_console.log("Attempting to activate module " .. hotbar_index)
     -- Hotbar indices 1-10 correspond to keys 1-9,0
     if hotbar_index < 1 or hotbar_index > 10 then return false end
     
     -- Get the module at this hotbar position
     local module = active_modules[hotbar_index]
     if not module then
-        debug_console.log("Module " .. hotbar_index .. " not found")
         return false
     end
 
-    debug_console.log("Module state: " .. module.state)
     -- Toggle logic for turrets
     if module.def.effect == "fire_turret" then
         if module.state == "ready" then
             module.state = "active"
-            debug_console.log("Activated module: " .. module.id)
         elseif module.state == "active" then
             module.state = "ready" -- Set to ready when deactivated
-            debug_console.log("Deactivated module: " .. module.id)
         end
         return true
     end
@@ -106,10 +103,8 @@ function M.activate_module(hotbar_index)
             module.state = "active"
             module.duration = module.def.duration or 0
             
-            debug_console.log("Activated module: " .. module.id)
             return true
         else
-            debug_console.log("Not enough energy to activate module: " .. module.id)
             return false
         end
     end

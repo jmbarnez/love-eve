@@ -143,7 +143,7 @@ function love.keypressed(key)
     local playerEntity = state.get("player")
     playerEntity.vx, playerEntity.vy = playerEntity.vx*0.9, playerEntity.vy*0.9
   end
-  if key == "c" then
+  if key == "`" then
     debug_console.toggle()
   end
   if key == "d" then
