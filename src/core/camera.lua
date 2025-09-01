@@ -15,11 +15,11 @@ function M.push()
   local lg = love.graphics
   lg.push()
   local camera = ctx.get("camera")
-  local G = ctx.get("gameState").G
+  local gameState = ctx.get("gameState")
   local sx = love.math.random() * (camera.shake*2) - camera.shake
   local sy = love.math.random() * (camera.shake*2) - camera.shake
   lg.translate(lg.getWidth()/2, lg.getHeight()/2)
-  lg.scale(G.ZOOM, G.ZOOM)
+  lg.scale(gameState.zoom, gameState.zoom)
   lg.translate(-camera.x + sx, -camera.y + sy)
 end
 

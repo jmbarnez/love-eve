@@ -14,7 +14,7 @@ local Panel = {
 }
 
 local function getItemDisplayName(id)
-  local items = require("src.models.items.registry")
+  local items = require("src.content.items.registry")
   return items.getName(id)
 end
 

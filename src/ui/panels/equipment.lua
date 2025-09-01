@@ -56,7 +56,7 @@ local function updatePlayerStats()
 
   -- Apply equipment bonuses
   for slotId, itemId in pairs(equipment) do
-    local itemDef = require("src.models.items.registry").get(itemId)
+    local itemDef = require("src.content.items.registry").get(itemId)
     if itemDef and itemDef.slot_type and itemDef.stats then
       -- Only apply if item can fit in this slot
       if (itemDef.slot_type == "high_power" and string.find(slotId, "high_power")) or
@@ -212,7 +212,7 @@ function Panel.draw()
 
   -- Draw equipment slots in EVE-like layout
   local hoveredSlots = {}
-  local items = require("src.models.items.registry")
+  local items = require("src.content.items.registry")
   local inventory = playerEntity.inventory or {}
 
   -- High slots (top row)
@@ -499,7 +499,7 @@ function Panel.mousereleased(x, y, button)
 
     -- Check if clicked within a specific slot
     local equipment = getPlayerEquipment()
-    local items = require("src.models.items.registry")
+    local items = require("src.content.items.registry")
 
     -- Check high slots
     for i = 1, 4 do

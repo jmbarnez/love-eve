@@ -8,13 +8,15 @@ local util = require("src.core.util")
 
 local player   = require("src.entities.player")
 local enemies  = require("src.entities.enemy")
+local spaceStation = require("src.entities.space_station")
 local projectiles = require("src.systems.projectiles")
 local loot     = require("src.entities.loot")
-local lootBox  = require("src.entities.loot_box")
+local wreckage = require("src.entities.wreckage")
 
 local world    = require("src.render.world")
 local dock     = require("src.ui.dock_window")
 local simpleUI = require("src.ui.simple_ui")
+local modules = require("src.systems.modules")
 
 function love.load()
   love.window.setTitle("DarkOrbit-like (Single Player, Refactored)")
@@ -31,10 +33,17 @@ function love.load()
   world.init()
   player.init()
   enemies.init()
+  spaceStation.init()
   loot.init()
   projectiles.init()
   dock.init()
   simpleUI.init()
+  wreckage.init()
+  modules.init()
+
+  -- Initialize continuous movement state
+  gameState.rightMouseHeld = false
+  gameState.zoom = gameState.G.ZOOM or 1.2  -- Initialize zoom
 
   -- Attempt to load existing save
   save.load()
@@ -54,6 +63,17 @@ function love.update(dt)
     save.save()
   end
 
+  -- Handle continuous right-click movement
+  local playerEntity = state.get("player")
+  if gameState.rightMouseHeld and playerEntity and not playerEntity.docked then
+    local mx, my = love.mouse.getPosition()
+    local lg = love.graphics
+    local camera = state.get("camera")
+    local wx = camera.x + (mx - lg.getWidth()/2)/gameState.zoom
+    local wy = camera.y + (my - lg.getHeight()/2)/gameState.zoom
+    player.setMoveTarget(wx, wy)
+  end
+
   camera.update(dt)
 
   local playerEntity = state.get("player")
@@ -62,9 +82,11 @@ function love.update(dt)
   else
     player.update(dt)
     enemies.update(dt)
+    spaceStation.update(dt)
     projectiles.update(dt)
     loot.update(dt)
-    lootBox.update(dt)
+    wreckage.update(dt)
+    modules.update(dt)
   end
   
   simpleUI.update(dt)
@@ -75,6 +97,10 @@ function love.draw()
 
   camera.push()
   world.draw()
+  enemies.draw()
+  wreckage.draw()
+  projectiles.draw()
+  loot.draw()
   camera.pop()
 
   -- Minimal Sci-Fi HUD System
@@ -111,17 +137,40 @@ function love.keypressed(key)
     local playerEntity = state.get("player")
     playerEntity.attackTarget = nil
   end
-  if key == "e" then
+  if key == "d" then
     local playerEntity = state.get("player")
     local station = state.get("station")
     local dx,dy = playerEntity.x - station.x, playerEntity.y - station.y
     if util.len(dx,dy) < 320 then playerEntity.docked = not playerEntity.docked end
   end
-  -- Removed manual fire key - using auto-attack system instead
+  -- Zoom controls
+  if key == "=" or key == "+" then
+    gameState.zoom = math.min(2.0, gameState.zoom * 1.2)
+  elseif key == "-" then
+    gameState.zoom = math.max(0.5, gameState.zoom / 1.2)
+  elseif key == "1" then
+    gameState.zoom = 0.5
+  elseif key == "2" then
+    gameState.zoom = 1.0
+  elseif key == "3" then
+    gameState.zoom = 2.0
+  end
+  -- Ability controls (QWER keys like EVE Online)
+  if key == "q" then
+    modules.activate_module(1)
+  elseif key == "w" then
+    modules.activate_module(2)
+  elseif key == "e" then
+    modules.activate_module(3)
+  elseif key == "r" then
+    modules.activate_module(4)
+  end
+  -- Removed manual fire key - using auto attack system instead
 end
 
 function love.mousepressed(x,y,btn)
   local playerEntity = state.get("player")
+  local gameState = state.get("gameState")
 
   -- Let UI handle mouse input first
   if simpleUI.mousepressed(x, y, btn) then return end
@@ -131,25 +180,55 @@ function love.mousepressed(x,y,btn)
     return
   end
   if btn == 1 then
-    -- Left click: set attack target if clicking on enemy
+    -- Left click: set attack target if clicking on enemy, or collect loot
+    local loot = require("src.entities.loot")
+    if loot.handleLeftClick(x, y) then
+      return -- Loot collection handled
+    end
+
     local enemy = player.getEnemyUnderMouse()
     if enemy then
       player.setAttackTarget(enemy)
     end
   elseif btn == 2 then
-    -- Right click to move
-    local lg = love.graphics
-    local camera = state.get("camera")
-    local config = state.get("config") or require("src.core.config") or { game = { ZOOM = 1.0 } }
-    local gameConfig = config.game or { ZOOM = 1.0 }
-    local wx = camera.x + (x - lg.getWidth()/2)/gameConfig.ZOOM
-    local wy = camera.y + (y - lg.getHeight()/2)/gameConfig.ZOOM
-    player.setMoveTarget(wx, wy)
+    -- Right click to start continuous movement or interact with wreckage
+    local wreckage = require("src.entities.wreckage")
+    if not wreckage.handleRightClick(x, y) then
+      -- If not clicking on wreckage, start continuous movement
+      gameState.rightMouseHeld = true
+      local lg = love.graphics
+      local camera = state.get("camera")
+      local config = state.get("config") or require("src.core.config") or { game = { ZOOM = 1.0 } }
+      local gameConfig = config.game or { ZOOM = 1.0 }
+      local wx = camera.x + (x - lg.getWidth()/2)/gameState.zoom
+      local wy = camera.y + (y - lg.getHeight()/2)/gameState.zoom
+      player.setMoveTarget(wx, wy)
+    end
   end
 end
 
 function love.mousereleased(x, y, btn)
+  local gameState = state.get("gameState")
+  
   if simpleUI.mousereleased(x, y, btn) then return end
+  
+  if btn == 2 then
+    -- Stop continuous movement when right mouse is released
+    gameState.rightMouseHeld = false
+  end
+end
+
+function love.wheelmoved(x, y)
+  local gameState = state.get("gameState")
+  
+  -- Zoom in/out with scroll wheel
+  if y > 0 then
+    -- Zoom in
+    gameState.zoom = math.min(2.0, gameState.zoom * 1.2)
+  elseif y < 0 then
+    -- Zoom out
+    gameState.zoom = math.max(0.5, gameState.zoom / 1.2)
+  end
 end
 
 function love.quit()

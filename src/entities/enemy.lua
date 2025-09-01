@@ -95,7 +95,11 @@ function M.new(px,py, variantName, level)
     bonus={tier=math.max(1, math.min(4, p.tier)), cr=p.creditReward * variant.rewardBonus, variant=variant},
     state="idle", -- becomes "aggro" only when attacked
     color=variant.color,
-    variant=variant.name
+    variant=variant.name,
+    spawnX = px, spawnY = py, -- Store spawn point
+    roamTargetX = px + (love.math.random() * 2 - 1) * 150, -- Initial roam target
+    roamTargetY = py + (love.math.random() * 2 - 1) * 150,
+    roamTimer = 0 -- Timer to change roam target
   }
 end
 
@@ -116,18 +120,48 @@ local function keepInWorld(e)
 end
 
 local function idleWander(e, dt)
-  local jitterX = (love.math.random()*2-1) * 0.5
-  local jitterY = (love.math.random()*2-1) * 0.5
-  e.vx = e.vx + jitterX * 10 * dt
-  e.vy = e.vy + jitterY * 10 * dt
-  e.x  = e.x + e.vx*dt
-  e.y  = e.y + e.vy*dt
-  e.r  = e.r + (love.math.random()*2-1)*0.5*dt
+  -- Roaming behavior around spawn point
+  e.roamTimer = e.roamTimer + dt
+
+  -- Every 3-6 seconds, pick a new roam target near spawn point
+  if e.roamTimer > 3 + love.math.random() * 3 then
+    e.roamTimer = 0
+    local angle = love.math.random() * 2 * math.pi
+    local distance = 50 + love.math.random() * 100  -- Roam within 50-150 pixels of spawn
+    e.roamTargetX = e.spawnX + math.cos(angle) * distance
+    e.roamTargetY = e.spawnY + math.sin(angle) * distance
+  end
+
+  -- Steer toward roam target
+  local dx = e.roamTargetX - e.x
+  local dy = e.roamTargetY - e.y
+  local distToTarget = math.sqrt(dx*dx + dy*dy)
+  if distToTarget > 10 then  -- If not at target, accelerate toward it
+    local speedFactor = math.min(1, distToTarget / 20)  -- Slow down when close
+    local desiredVx = (dx / distToTarget) * e.maxSpeed * 0.5 * speedFactor  -- Half speed for roaming
+    local desiredVy = (dy / distToTarget) * e.maxSpeed * 0.5 * speedFactor
+
+    e.vx = util.lerp(e.vx, desiredVx, 0.2 * dt)  -- Smooth acceleration
+    e.vy = util.lerp(e.vy, desiredVy, 0.2 * dt)
+  else
+    -- Slowly drift when at target
+    e.vx = e.vx * 0.9
+    e.vy = e.vy * 0.9
+  end
+
+  -- Apply movement and friction
+  e.x = e.x + e.vx * dt
+  e.y = e.y + e.vy * dt
+
+  -- Update rotation based on movement direction
+  if e.vx ~= 0 or e.vy ~= 0 then
+    e.r = math.atan2(e.vy, e.vx)
+  end
 end
 
 -- Fire projectile at player
 local function fire(owner)
-  local bullet = require("src.models.projectiles.types.bullet")
+  local bullet = require("src.content.projectiles.types.bullet")
   projectiles.createFromOwner(owner, bullet, state.get("player"))
 end
 
@@ -172,7 +206,7 @@ end
 
 function M.generateLootContents(bonus)
   bonus = bonus or {}
-  local items = require("src.models.items.registry")
+  local items = require("src.content.items.registry")
   local tier = bonus.tier or 1  -- Enemy tier for scaling drops
   return items.generateRandomLoot(tier, bonus.cr)
 end
@@ -188,20 +222,11 @@ function M.kill(index)
     table.insert(particles, {x=e.x, y=e.y, vx=(love.math.random()*2-1)*80, vy=(love.math.random()*2-1)*80, life=0.4+love.math.random()*0.5})
   end
   
+  -- Create wreckage with loot contents
   local contents = M.generateLootContents(e.bonus)
   if next(contents) ~= nil then
-    -- Only drop loot box if there is actual loot
-    local lootBoxes = state.get("lootBoxes")
-    local lootBox = {
-      x = e.x + (love.math.random()*2-1)*10,
-      y = e.y + (love.math.random()*2-1)*10,
-      radius = 12,
-      type = "loot_box",
-      life = 30,  -- Loot boxes last longer
-      spin = (love.math.random()*2-1)*2,
-      contents = contents
-    }
-    table.insert(lootBoxes, lootBox)
+    local wreckage = require("src.entities.wreckage")
+    wreckage.create(e.x, e.y, e.variant, e.r, contents)
   end
   
   table.remove(enemies, index)

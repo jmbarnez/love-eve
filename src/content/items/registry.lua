@@ -124,6 +124,23 @@ M.items = {
   },
 
   -- EQUIPMENT MODULES (High Power)
+  ["basic_turret"] = {
+    id = "basic_turret",
+    name = "Basic Kinetic Turret",
+    description = "A basic kinetic turret module.",
+    category = "equipment",
+    slot_type = "high_power",
+    module_type = "active",
+    effect = "fire_turret",
+    energy_cost = 10,
+    cooldown = 2,
+    duration = 1,
+    value = 1000,
+    stackable = false,
+    maxStack = 1,
+    color = {0.6, 0.6, 0.7, 1}, -- Greyish color
+  },
+
   ["small_railgun"] = {
     id = "small_railgun",
     name = "Small Focused Pulse Laser I",

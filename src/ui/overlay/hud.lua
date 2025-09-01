@@ -1,6 +1,9 @@
-Alocal ctx = require("src.core.state")
+local ctx = require("src.core.state")
 local theme = require("src.ui.theme")
 local bars = require("src.ui.components.bars")
+local modules = require("src.systems.modules")
+local item_icon = require("src.ui.components.item_icon")
+local tooltip = require("src.ui.components.tooltip")
 
 local M = {}
 
@@ -10,102 +13,152 @@ function M.draw()
 
   local W, H = love.graphics.getWidth(), love.graphics.getHeight()
 
-  -- Enhanced sci-fi status bars (top-left)
-  local x, y = 20, 20
-  local w, h = 220, 20
-  local spacing = 25
+  -- Bottom-left cluster (three rings)
+  local marginX, marginY = 90, 90
+  local cx = marginX
+  local cy = H - marginY
 
-  -- Hull integrity
-  bars.sciFi(x, y, w, h, p.hp, p.maxHP, theme.warning, "HULL", true)
+  local capR = 26
+  local hullR = capR + 9
+  local shieldR = hullR + 6
 
-  -- Shield status
-  bars.sciFi(x, y + spacing, w, h, p.shield, p.maxShield, theme.primary, "SHIELD", true)
+  -- Energy (capacitor) center ring
+  bars.ringProgress(cx, cy, capR, p.energy or 0, p.maxEnergy or 1, theme.energy, nil, { thickness = 5 })
 
-  -- Energy core
-  bars.sciFi(x, y + spacing * 2, w, h, p.energy, p.maxEnergy, theme.energy, "ENERGY", true)
+  -- Hull and Shield outer rings
+  bars.ringProgress(cx, cy, shieldR, p.shield or 0, p.maxShield or 1, theme.primary, nil, { thickness = 3 })
+  bars.ringProgress(cx, cy, hullR,   p.hp or 0,     p.maxHP or 1,     theme.warning, nil, { thickness = 3 })
 
-  -- Status indicators with icons
-  love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.8)
+  -- Central module hotbar
+  local active_modules = modules.get_modules()
+  if #active_modules > 0 then
+    local BAR_WIDTH = 400
+    local BAR_HEIGHT = 60
+    local ICON_SIZE = 48
+    local bar_x = (W - BAR_WIDTH) / 2
+    local bar_y = H - BAR_HEIGHT - 20
 
-  -- FPS counter (top-right) - Above minimap
-  local fps = love.timer.getFPS()
-  local fpsY = 10
-  local fpsX = W - 10
+    -- Draw a semi-transparent background for the bar
+    love.graphics.setColor(0.1, 0.1, 0.1, 0.7)
+    love.graphics.rectangle("fill", bar_x, bar_y, BAR_WIDTH, BAR_HEIGHT, 5)
 
-  -- Semi-transparent background for FPS counter
-  love.graphics.setColor(0.1, 0.15, 0.2, 0.8)
-  love.graphics.rectangle("fill", fpsX - 60, fpsY - 5, 60, 25, 2)
-  love.graphics.setColor(theme.border[1], theme.border[2], theme.border[3], 0.6)
-  love.graphics.rectangle("line", fpsX - 60, fpsY - 5, 60, 25, 2)
+    for i, module in ipairs(active_modules) do
+        local icon_x = bar_x + (i - 1) * (ICON_SIZE + 10) + 10
+        local icon_y = bar_y + (BAR_HEIGHT - ICON_SIZE) / 2
 
-  -- FPS text
-  love.graphics.setColor(theme.text[1], theme.text[2], theme.text[3], 0.9)
-  love.graphics.printf(fps .. " FPS", fpsX - 58, fpsY, 56, "center")
+        -- Draw the item icon
+        item_icon.draw(module.id, icon_x, icon_y, ICON_SIZE)
 
-  -- Minimap (below FPS counter) - Enhanced with better styling
-  local mapSize = 140
-  local mapX, mapY = W - mapSize - 10, fpsY + 35
+        -- Check for hover and draw tooltip
+        local mx, my = love.mouse.getPosition()
+        if mx > icon_x and mx < icon_x + ICON_SIZE and my > icon_y and my < icon_y + ICON_SIZE then
+            tooltip.draw_text(module.def.name, module.def.description)
+        end
 
-  -- Minimap background with sci-fi border
-  love.graphics.setColor(0.05, 0.08, 0.12, 0.9)
-  love.graphics.rectangle("fill", mapX, mapY, mapSize, mapSize, 4)
+        -- Draw cooldown/duration overlay
+        if module.state == "cooldown" then
+            local cooldown_percent = module.cooldown / (module.def.cooldown or 5)
+            love.graphics.setColor(0, 0, 0, 0.8)
+            love.graphics.rectangle("fill", icon_x, icon_y + ICON_SIZE * (1 - cooldown_percent), ICON_SIZE, ICON_SIZE * cooldown_percent)
+        elseif module.state == "active" then
+            love.graphics.setColor(0, 1, 0, 0.3)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle("fill", icon_x, icon_y, ICON_SIZE, ICON_SIZE)
+        end
 
-  -- Minimap border
-  love.graphics.setColor(theme.border[1], theme.border[2], theme.border[3], 0.8)
-  love.graphics.setLineWidth(2)
-  love.graphics.rectangle("line", mapX, mapY, mapSize, mapSize, 4)
-
-  -- Inner grid
-  love.graphics.setColor(theme.border[1], theme.border[2], theme.border[3], 0.3)
-  love.graphics.setLineWidth(1)
-  for i = 1, 3 do
-    local gx = mapX + (mapSize / 4) * i
-    local gy = mapY + (mapSize / 4) * i
-    love.graphics.line(gx, mapY, gx, mapY + mapSize)
-    love.graphics.line(mapX, gy, mapX + mapSize, gy)
+        -- Draw the key binding
+        love.graphics.setColor(theme.text)
+        local key = ({"Q", "W", "E", "R"})[i]
+        if key then
+          love.graphics.printf(key, icon_x, icon_y + ICON_SIZE - 12, ICON_SIZE, "center")
+        end
+    end
   end
 
-  local gameState = ctx.get("gameState")
+
+  -- Top-right minimap
+  local MAP_SIZE = 150
+  local MAP_MARGIN_X, MAP_MARGIN_Y = 20, 20
+  local mapX = W - MAP_SIZE - MAP_MARGIN_X
+  local mapY = MAP_MARGIN_Y
+  local centerX = mapX + MAP_SIZE / 2
+  local centerY = mapY + MAP_SIZE / 2
+
+  -- Minimap background
+  love.graphics.setColor(0.1, 0.1, 0.12, 0.8)
+  love.graphics.rectangle("fill", mapX, mapY, MAP_SIZE, MAP_SIZE, 4)
+  love.graphics.setColor(0.3, 0.3, 0.4, 0.7)
+  love.graphics.rectangle("line", mapX, mapY, MAP_SIZE, MAP_SIZE, 4)
+
+  -- Minimap bounds circle (representing world limit)
+  local maxDist = 2000 -- Adjust based on world size
+  love.graphics.setColor(0.4, 0.4, 0.5, 0.5)
+  love.graphics.circle("line", centerX, centerY, MAP_SIZE / 2 * 0.8)
+
+  -- Draw enemies on minimap
+  local enemies = ctx.get("enemies") or {}
+  love.graphics.setColor(1, 0.3, 0.3, 0.8) -- Red for enemies
+  for _, enemy in ipairs(enemies) do
+    local relX = (enemy.x - p.x) / maxDist
+    local relY = (enemy.y - p.y) / maxDist
+    local mapPtX = centerX + relX * (MAP_SIZE / 2 * 0.8)
+    local mapPtY = centerY + relY * (MAP_SIZE / 2 * 0.8)
+    if relX >= -1 and relX <= 1 and relY >= -1 and relY <= 1 then
+      love.graphics.points(mapPtX, mapPtY)
+    end
+  end
+
+  -- Draw space station
   local station = ctx.get("station")
-  local enemies = ctx.get("enemies")
-  local half = gameState.G.WORLD_SIZE
-  local function toMini(wx, wy)
-    local u = (wx + half) / (2 * half)
-    local v = (wy + half) / (2 * half)
-    return mapX + u * mapSize, mapY + v * mapSize
-  end
-
-  -- Station marker
   if station then
-    local sx, sy = toMini(station.x, station.y)
-    love.graphics.setColor(theme.energy[1], theme.energy[2], theme.energy[3], 0.9)
-    love.graphics.circle("fill", sx, sy, 4)
-    love.graphics.setColor(1, 1, 1, 0.8)
-    love.graphics.circle("line", sx, sy, 4)
+    love.graphics.setColor(0.3, 0.8, 1, 0.8) -- Blue for station
+    local relX = (station.x - p.x) / maxDist
+    local relY = (station.y - p.y) / maxDist
+    local mapPtX = centerX + relX * (MAP_SIZE / 2 * 0.8)
+    local mapPtY = centerY + relY * (MAP_SIZE / 2 * 0.8)
+    if relX >= -1 and relX <= 1 and relY >= -1 and relY <= 1 then
+      love.graphics.points(mapPtX, mapPtY)
+    end
   end
 
-  -- Enemy markers
-  love.graphics.setColor(theme.warning[1], theme.warning[2], theme.warning[3], 0.8)
-  for _, e in ipairs(enemies or {}) do
-    local ex, ey = toMini(e.x, e.y)
-    love.graphics.rectangle("fill", ex - 2, ey - 2, 4, 4)
-    love.graphics.setColor(1, 1, 1, 0.6)
-    love.graphics.rectangle("line", ex - 2, ey - 2, 4, 4)
-    love.graphics.setColor(theme.warning[1], theme.warning[2], theme.warning[3], 0.8)
+  -- Draw loot items (yellow circles)
+  local loots = ctx.get("loots") or {}
+  love.graphics.setColor(1.0, 1.0, 0.0, 0.8) -- Yellow for loot
+  for _, loot in ipairs(loots) do
+    local relX = (loot.x - p.x) / maxDist
+    local relY = (loot.y - p.y) / maxDist
+    local mapPtX = centerX + relX * (MAP_SIZE / 2 * 0.8)
+    local mapPtY = centerY + relY * (MAP_SIZE / 2 * 0.8)
+    if relX >= -1 and relX <= 1 and relY >= -1 and relY <= 1 then
+      love.graphics.circle("fill", mapPtX, mapPtY, 1.5)
+    end
   end
 
-  -- Player marker
-  local px, py = toMini(p.x, p.y)
-  love.graphics.setColor(theme.primary[1], theme.primary[2], theme.primary[3], 1)
-  love.graphics.circle("fill", px, py, 3)
-  love.graphics.setColor(1, 1, 1, 0.9)
-  love.graphics.circle("line", px, py, 3)
-
-  -- Energy warning indicator
-  if p.energy < p.maxEnergy * 0.3 then
-    love.graphics.setColor(theme.energy[1], theme.energy[2], theme.energy[3], 0.6)
-    love.graphics.printf("LOW ENERGY", x, y + spacing * 3 + 5, w, "center")
+  -- Draw wreckage (gray)
+  local wreckage = ctx.get("wreckage") or {}
+  love.graphics.setColor(0.5, 0.5, 0.5, 0.8) -- Gray for wreckage
+  for _, wreck in ipairs(wreckage) do
+    local relX = (wreck.x - p.x) / maxDist
+    local relY = (wreck.y - p.y) / maxDist
+    local mapPtX = centerX + relX * (MAP_SIZE / 2 * 0.8)
+    local mapPtY = centerY + relY * (MAP_SIZE / 2 * 0.8)
+    if relX >= -1 and relX <= 1 and relY >= -1 and relY <= 1 then
+      love.graphics.points(mapPtX, mapPtY)
+    end
   end
+
+  -- Draw player at center (green)
+  love.graphics.setColor(0.3, 1, 0.3, 1)
+  love.graphics.points(centerX, centerY)
+
+  -- FPS counter underneath minimap
+  local fpsX = mapX
+  local fpsY = mapY + MAP_SIZE + 10
+  love.graphics.setColor(theme.text)
+  love.graphics.printf("FPS: " .. love.timer.getFPS(), fpsX, fpsY, MAP_SIZE, "center")
+
+  -- Reset color
+  love.graphics.setColor(1, 1, 1, 1)
 end
 
 return M

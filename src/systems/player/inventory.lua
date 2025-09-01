@@ -1,5 +1,5 @@
 local ctx = require("src.core.state")
-local Items = require("src.models.items.registry")
+local Items = require("src.content.items.registry")
 
 local M = {}
 

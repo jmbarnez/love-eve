@@ -5,12 +5,25 @@ M.game = {
   WORLD_SIZE = 4500,
   STAR_COUNT_BG = 800,
   STAR_COUNT_FG = 400,
-  MAX_ENEMIES = 8,
+  MAX_ENEMIES = 25,
   ENEMY_RESPAWN_TIME = 6.0,
   CAMERA_SMOOTH = 8,
   ZOOM = 1.2,
   UI_SCALE = 1.0,
   AUTOSAVE_INTERVAL = 60,
+
+  -- Window settings
+  WINDOW_FULLSCREEN = true,
+  WINDOW_RESIZABLE = true,
+  WINDOW_VSYNC = true,
+
+  -- Game timing
+  MAX_DT = 1/30, -- Maximum delta time to prevent large jumps
+
+  -- Zoom controls
+  ZOOM_STEP = 1.2,
+  ZOOM_MIN = 0.5,
+  ZOOM_MAX = 2.0,
 }
 
 M.player = {
@@ -97,6 +110,9 @@ M.projectiles = {
   bulletShieldDamageMultiplier = 0.5,
   lockOnRange = 400,
   lockOnDelay = 0.3,
+  spawnOffset = 8,
+  homingStrength = 5.0,
+  rocketLockOnDelay = 0.3,
 }
 
 M.ui = {
@@ -114,6 +130,27 @@ M.world = {
   dockingRadius = 320,
   waypointRadius = 12,
   targetIndicatorRadiusOffset = 10,
+}
+
+M.gameplay = {
+  -- Player death and respawn
+  deathParticlesCount = 40,
+  deathParticlesVx = {-120, 120},
+  deathParticlesVy = {-120, 120},
+  deathParticlesLife = {0.6, 1.2},
+  deathRecoveryMultiplier = 0.6,
+  deathMinHP = 30,
+  deathMinShield = 40,
+  cameraShakeOnDeath = 1.0,
+
+  -- Player spawn/respawn
+  spawnOffsetFromStation = 150,
+  projectileVelocityMultiplier = 0.3,
+
+  -- Main game constants
+  dampingBrakeStrength = 0.2,
+  continueBrakeStrength = 0.1,
+  continueVelocityThreshold = 0.1,
 }
 
 return M

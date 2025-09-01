@@ -4,6 +4,15 @@ local config = require("src.core.config")
 
 local M = {}
 
+-- Cache enemy module reference to avoid circular dependencies
+local enemyModule = nil
+local function getEnemyModule()
+  if not enemyModule then
+    enemyModule = require("src.entities.enemy")
+  end
+  return enemyModule
+end
+
 -- Projectile types
 local TYPES = {
   BOLT = "bolt",
@@ -25,7 +34,7 @@ local function newProjectile(x, y, vx, vy, weapon, owner, target)
     target = target,
     radius = weapon.radius or 3,
     type = weapon.type,
-    lockOnDelay = weapon.type == "rocket" and 0.3 or 0,  -- 0.3 second lock-on delay for rockets
+    lockOnDelay = weapon.type == "rocket" and config.projectiles.rocketLockOnDelay or 0,
     lockOnTimer = 0,
     hasLockedOn = target ~= nil  -- true if fired with initial target
   }
@@ -37,10 +46,10 @@ function M.createFromOwner(owner, weapon, target)
   local angle = owner.r + (love.math.random() * 2 - 1) * spread
   local spd = weapon.speed
   
-  local px = owner.x + math.cos(angle) * (owner.radius + 8)
-  local py = owner.y + math.sin(angle) * (owner.radius + 8)
-  local pvx = math.cos(angle) * spd + (owner.vx or 0) * 0.3
-  local pvy = math.sin(angle) * spd + (owner.vy or 0) * 0.3
+  local px = owner.x + math.cos(angle) * (owner.radius + config.projectiles.spawnOffset)
+  local py = owner.y + math.sin(angle) * (owner.radius + config.projectiles.spawnOffset)
+  local pvx = math.cos(angle) * spd + (owner.vx or 0) * config.gameplay.projectileVelocityMultiplier
+  local pvy = math.sin(angle) * spd + (owner.vy or 0) * config.gameplay.projectileVelocityMultiplier
   
   local projectile = newProjectile(px, py, pvx, pvy, weapon, owner, target)
   local projectiles = state.get("projectiles")
@@ -81,8 +90,8 @@ local function hitEnemy(projectile, enemyIndex)
     return
   end
   
-  -- Direct hit - use enemy module loaded dynamically to avoid circular dependency
-  local enemy = require("src.entities.enemy")
+  -- Direct hit - use cached enemy module to avoid circular dependency
+  local enemy = getEnemyModule()
   enemy.onHit(e, projectile.damage)
   
   local projectiles = state.get("projectiles")
@@ -99,7 +108,7 @@ local function hitPlayer(projectile)
   if checkShieldHit(projectile, playerEntity) then
     -- Make enemy that fired this aggressive
     if projectile.owner and projectile.owner ~= playerEntity then
-      local enemy = require("src.entities.enemy")
+      local enemy = getEnemyModule()
       enemy.makeAggressive(projectile.owner)
     end
     local projectiles = state.get("projectiles")
@@ -111,7 +120,7 @@ local function hitPlayer(projectile)
   
   -- Make enemy aggressive
   if projectile.owner and projectile.owner ~= playerEntity then
-    local enemy = require("src.entities.enemy")
+    local enemy = getEnemyModule()
     enemy.makeAggressive(projectile.owner)
   end
   
@@ -120,22 +129,22 @@ local function hitPlayer(projectile)
   
   -- Handle player death
   if playerEntity.hp <= 0 then
-    camera.shake = 1.0
-    for k = 1, 40 do
+    camera.shake = config.gameplay.cameraShakeOnDeath
+    for k = 1, config.gameplay.deathParticlesCount do
       table.insert(particles, {
         x = playerEntity.x, y = playerEntity.y,
-        vx = util.randf(-120, 120),
-        vy = util.randf(-120, 120),
-        life = util.randf(0.6, 1.2)
+        vx = util.randf(config.gameplay.deathParticlesVx[1], config.gameplay.deathParticlesVx[2]),
+        vy = util.randf(config.gameplay.deathParticlesVy[1], config.gameplay.deathParticlesVy[2]),
+        life = util.randf(config.gameplay.deathParticlesLife[1], config.gameplay.deathParticlesLife[2])
       })
     end
     -- Respawn
-    playerEntity.x = state.get("station").x + 150
+    playerEntity.x = state.get("station").x + config.gameplay.spawnOffsetFromStation
     playerEntity.y = state.get("station").y
     playerEntity.docked = false
     playerEntity.vx, playerEntity.vy = 0, 0
-    playerEntity.hp = math.max(30, math.floor(playerEntity.maxHP * 0.6))
-    playerEntity.shield = math.max(40, math.floor(playerEntity.maxShield * 0.6))
+    playerEntity.hp = math.max(config.gameplay.deathMinHP, math.floor(playerEntity.maxHP * config.gameplay.deathRecoveryMultiplier))
+    playerEntity.shield = math.max(config.gameplay.deathMinShield, math.floor(playerEntity.maxShield * config.gameplay.deathRecoveryMultiplier))
     playerEntity.energy = playerEntity.maxEnergy
   end
 end
@@ -202,7 +211,7 @@ local function updateHoming(projectile, dt)
     
     -- Smooth homing for rockets
     if projectile.weapon.type == "rocket" then
-      local homingStrength = 5.0 * dt
+      local homingStrength = config.projectiles.homingStrength * dt
       projectile.vx = projectile.vx + (targetVx - projectile.vx) * homingStrength
       projectile.vy = projectile.vy + (targetVy - projectile.vy) * homingStrength
     else
@@ -225,46 +234,47 @@ end
 -- Main update function
 function M.update(dt)
   local projectiles = state.get("projectiles")
-  for i = #projectiles, 1, -1 do
+  local i = #projectiles
+
+  while i >= 1 do
     local p = projectiles[i]
     p._i = i
-    
+
     -- Update homing if applicable
     if p.weapon.type == "rocket" or (p.target and (p.weapon.type == "bolt" or p.weapon.type == "bullet")) then
       updateHoming(p, dt)
     end
-    
+
     -- Update position
     p.x = p.x + p.vx * dt
     p.y = p.y + p.vy * dt
     p.life = p.life - dt
-    
+
     -- Remove if expired
     if p.life <= 0 then
       table.remove(projectiles, i)
-      goto continue
-    end
-    
-    -- Collision detection
-    if p.owner == state.get("player") then
-      -- Player projectile hitting enemies
-      local enemies = state.get("enemies")
-      for j = #enemies, 1, -1 do
-        local e = enemies[j]
-        if util.len2(p.x - e.x, p.y - e.y) <= (e.radius + p.radius) * (e.radius + p.radius) then
-          hitEnemy(p, j)
-          break
+    else
+      -- Collision detection
+      if p.owner == state.get("player") then
+        -- Player projectile hitting enemies
+        local enemies = state.get("enemies")
+        for j = #enemies, 1, -1 do
+          local e = enemies[j]
+          if util.len2(p.x - e.x, p.y - e.y) <= (e.radius + p.radius) * (e.radius + p.radius) then
+            hitEnemy(p, j)
+            break
+          end
+        end
+      else
+        -- Enemy projectile hitting player
+        local playerEntity = state.get("player")
+        if util.len2(p.x - playerEntity.x, p.y - playerEntity.y) <= (playerEntity.radius + p.radius) * (playerEntity.radius + p.radius) then
+          hitPlayer(p)
         end
       end
-    else
-      -- Enemy projectile hitting player
-      local playerEntity = state.get("player")
-      if util.len2(p.x - playerEntity.x, p.y - playerEntity.y) <= (playerEntity.radius + p.radius) * (playerEntity.radius + p.radius) then
-        hitPlayer(p)
-      end
     end
-    
-    ::continue::
+
+    i = i - 1
   end
 end
 

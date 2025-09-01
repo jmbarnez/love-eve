@@ -103,7 +103,7 @@ function Panel.draw()
   -- Get current and total stats
   local totalStats = player.getTotalStats()
   local equipment = player.getEquipment()
-  local items = require("src.models.items.registry")
+  local items = require("src.content.items.registry")
 
   -- Draw ship header
   local ship = require("src.content.ships.starter")

@@ -1,8 +1,8 @@
-
 local state = require("src.core.state")
 local util = require("src.core.util")
 local ship = require("src.content.ships.starter")
 local config = require("src.core.config")
+local modules = require("src.systems.modules")
 
 local M = {}
 
@@ -36,10 +36,9 @@ function M.new()
 end
 
 function M.init()
-  local station = {x=0,y=0}
-  state.set("station", station)
   local playerEntity = M.new()
   -- Start near station but not docked
+  local station = state.get("station") or {x=0,y=0}
   playerEntity.x = station.x + 150  -- offset to the right
   playerEntity.y = station.y
   playerEntity.docked = false
@@ -58,6 +57,8 @@ function M.init()
   M.addToInventory("small_shield_booster", 1)
   M.addToInventory("heat_sink", 1)
   M.addToInventory("small_capacitor_booster", 1)
+  M.addToInventory("basic_turret", 1)
+  M.equipItem("high_power_1", "basic_turret")
 end
 
 local function applyMovement(dt)
@@ -150,41 +151,60 @@ end
 
 local function shooting(dt)
   local playerEntity = state.get("player")
-  local playerConfig = config.player
   local p = playerEntity
-  p.lastShot = math.min(p.lastShot + dt, 1.0)  -- Cap at 1 second to prevent overflow
-  -- decrease explicit cooldown timer
+  p.lastShot = math.min(p.lastShot + dt, 1.0)
   p.fireCooldown = math.max(0, (p.fireCooldown or 0) - dt)
 
-  -- Auto attack if we have a target and it's alive
-  if p.attackTarget and p.attackTarget.hp > 0 then
-    local dx = p.attackTarget.x - p.x
-    local dy = p.attackTarget.y - p.y
-    local dist = util.len(dx, dy)
-
-    -- Only shoot if within reasonable range and have enough energy
-    if dist < 600 and p.fireCooldown <= 0 and p.energy >= playerConfig.energyCostPerShot then
-      -- Face the target
-      p.r = math.atan2(dy, dx)
-
-      -- Fire bullet at target
-      local projectiles = require("src.systems.projectiles")
-      local bullet = require("src.models.projectiles.types.bullet")
-      projectiles.createFromOwner(p, bullet, p.attackTarget)
-
-      -- Consume energy for shooting (reduced from 8 to 4 per shot)
-      p.energy = math.max(0, p.energy - playerConfig.energyCostPerShot)
-
-      -- reset timers
-      p.lastShot = 0
-      p.fireCooldown = p.fireCooldownMax
-      local camera = state.get("camera")
-      camera.shake = math.min(0.05, camera.shake + 0.01)
-    end
-  else
-    -- Clear dead target
+  if p.attackTarget and p.attackTarget.hp <= 0 then
     p.attackTarget = nil
   end
+end
+
+function M.fire_turret()
+    local playerEntity = state.get("player")
+    local p = playerEntity
+    local playerConfig = config.player
+
+    -- If no target, find the closest one in range
+    if not p.attackTarget or p.attackTarget.hp <= 0 then
+        local enemies = state.get("enemies")
+        local closest_enemy = nil
+        local min_dist = 601 -- Max range + 1
+
+        for _, enemy in ipairs(enemies) do
+            if enemy.hp > 0 then
+                local dist = util.len(p.x - enemy.x, p.y - enemy.y)
+                if dist < min_dist then
+                    min_dist = dist
+                    closest_enemy = enemy
+                end
+            end
+        end
+        p.attackTarget = closest_enemy
+    end
+
+    if p.attackTarget and p.attackTarget.hp > 0 then
+        local dx = p.attackTarget.x - p.x
+        local dy = p.attackTarget.y - p.y
+        local dist = util.len(dx, dy)
+
+        if dist < 600 and p.fireCooldown <= 0 and p.energy >= playerConfig.energyCostPerShot then
+            p.r = math.atan2(dy, dx)
+
+            local projectiles = require("src.systems.projectiles")
+            local slug = require("src.content.projectiles.types.kinetic_slug")
+            projectiles.createFromOwner(p, slug, p.attackTarget)
+
+            p.energy = math.max(0, p.energy - playerConfig.energyCostPerShot)
+            p.lastShot = 0
+            p.fireCooldown = p.fireCooldownMax
+            
+            local camera = state.get("camera")
+            camera.shake = math.min(0.05, camera.shake + 0.01)
+            return true
+        end
+    end
+    return false
 end
 
 -- Function to fire rocket toward mouse position
@@ -280,37 +300,34 @@ end
 function M.draw()
   local playerEntity = state.get("player")
   local uiConfig = config.ui
+
+  -- Draw temporary move marker (expanding ring) UNDER the player
+  if playerEntity.moveMarker.timer > 0 then
+    local marker = playerEntity.moveMarker
+    local progress = 1 - (marker.timer / uiConfig.moveMarkerDuration) -- 0 to 1 as it fades
+    local alpha = marker.timer / uiConfig.moveMarkerDuration -- Fade from 1.0 to 0.0 over 1.25 seconds
+
+    -- Expanding ring that starts small and grows
+    local minRadius = 5
+    local maxRadius = 40
+    local currentRadius = minRadius + (maxRadius - minRadius) * progress
+
+    -- Ring color with fade
+    love.graphics.setColor(0.8, 0.9, 1.0, alpha * 0.8)
+    love.graphics.setLineWidth(3)
+    love.graphics.circle("line", marker.x, marker.y, currentRadius)
+
+    love.graphics.setColor(1, 1, 1, 1)
+  end
+
   ship.draw(playerEntity.x, playerEntity.y, playerEntity.r, 1.0, util.len(playerEntity.vx, playerEntity.vy)/playerEntity.maxSpeed)
   drawShield()
-  
+
   -- Draw attack target indicator
   if playerEntity.attackTarget and playerEntity.attackTarget.hp > 0 then
     love.graphics.setColor(1.0, 0.5, 0.0, 0.8) -- Orange indicator
     love.graphics.circle("line", playerEntity.attackTarget.x, playerEntity.attackTarget.y, playerEntity.attackTarget.radius + uiConfig.attackIndicatorRadiusOffset)
     love.graphics.setColor(1,1,1,1)
-  end
-  
-  -- Draw temporary move marker (League of Legends style)
-  if playerEntity.moveMarker.timer > 0 then
-    local marker = playerEntity.moveMarker
-    local alpha = marker.timer / uiConfig.moveMarkerDuration -- Fade from 1.0 to 0.0 over 1.25 seconds
-    local radius = 20 + (1 - alpha) * 10 -- Expand slightly as it fades
-    
-    -- Outer ring
-    love.graphics.setColor(0.8, 0.9, 1.0, alpha * 0.8)
-    love.graphics.setLineWidth(2)
-    love.graphics.circle("line", marker.x, marker.y, radius)
-    
-    -- Inner ring
-    love.graphics.setColor(0.6, 0.8, 1.0, alpha * 0.6)
-    love.graphics.setLineWidth(1)
-    love.graphics.circle("line", marker.x, marker.y, radius * 0.7)
-    
-    -- Center dot
-    love.graphics.setColor(0.8, 0.9, 1.0, alpha)
-    love.graphics.circle("fill", marker.x, marker.y, 3)
-    
-    love.graphics.setColor(1, 1, 1, 1)
   end
 end
 
@@ -326,7 +343,7 @@ end
 -- Equipment management functions
 function M.equipItem(slotId, itemId)
   local playerEntity = state.get("player")
-  local items = require("src.models.items.registry")
+  local items = require("src.content.items.registry")
   local itemDef = items.get(itemId)
 
   if not itemDef then return false, "Unknown item" end
@@ -351,7 +368,6 @@ function M.equipItem(slotId, itemId)
   -- Unequip existing item if any
   if playerEntity.equipment[slotId] then
     local existingItem = playerEntity.equipment[slotId]
-    M.removeFromInventory(existingItem, 1)
     M.addToInventory(existingItem, 1) -- Add back to inventory
   end
 
@@ -392,25 +408,23 @@ function M.equipItem(slotId, itemId)
     end
   end
 
+  modules.recalculate_modules()
   return true, "Equipped " .. itemDef.name
 end
 
 function M.unequipItem(slotId)
   local playerEntity = state.get("player")
-
-  if not playerEntity.equipment[slotId] then return false, "No item equipped in this slot" end
-
+  local items = require("src.content.items.registry")
   local itemId = playerEntity.equipment[slotId]
-  local items = require("src.models.items.registry")
   local itemDef = items.get(itemId)
 
-  -- Add item back to inventory
-  M.addToInventory(itemId, 1)
+  if not itemId then return false, "Slot is empty" end
 
-  -- Remove from equipment
+  -- Unequip the item and add back to inventory
+  M.addToInventory(itemId, 1)
   playerEntity.equipment[slotId] = nil
 
-  -- Update player stats (this will remove the bonuses)
+  -- Reset player stats to base ship stats
   local ship = require("src.content.ships.starter")
   playerEntity.maxHP = ship.maxHP
   playerEntity.maxShield = ship.maxShield
@@ -423,28 +437,27 @@ function M.unequipItem(slotId)
 
   -- Re-apply all remaining equipment bonuses
   for eqSlotId, eqItemId in pairs(playerEntity.equipment or {}) do
-    if eqSlotId ~= slotId then
-      local eqItemDef = items.get(eqItemId)
-      if eqItemDef and eqItemDef.slot_type and eqItemDef.stats then
-        local eqSlotType = ""
-        if string.find(eqSlotId, "high_power") then eqSlotType = "high_power"
-        elseif string.find(eqSlotId, "mid_power") then eqSlotType = "mid_power"
-        elseif string.find(eqSlotId, "low_power") then eqSlotType = "low_power"
-        elseif string.find(eqSlotId, "rigs") then eqSlotType = "rig"
-        elseif string.find(eqSlotId, "drone") then eqSlotType = "drone"
-        end
+    local eqItemDef = items.get(eqItemId)
+    if eqItemDef and eqItemDef.slot_type and eqItemDef.stats then
+      local eqSlotType = ""
+      if string.find(eqSlotId, "high_power") then eqSlotType = "high_power"
+      elseif string.find(eqSlotId, "mid_power") then eqSlotType = "mid_power"
+      elseif string.find(eqSlotId, "low_power") then eqSlotType = "low_power"
+      elseif string.find(eqSlotId, "rigs") then eqSlotType = "rig"
+      elseif string.find(eqSlotId, "drone") then eqSlotType = "drone"
+      end
 
-        if eqItemDef.slot_type == eqSlotType then
-          for stat, value in pairs(eqItemDef.stats) do
-            if playerEntity[stat] then
-              playerEntity[stat] = playerEntity[stat] + value
-            end
+      if eqItemDef.slot_type == eqSlotType then
+        for stat, value in pairs(eqItemDef.stats) do
+          if playerEntity[stat] then
+            playerEntity[stat] = playerEntity[stat] + value
           end
         end
       end
     end
   end
 
+  modules.recalculate_modules()
   return true, "Unequipped " .. (itemDef and itemDef.name or itemId)
 end
 
